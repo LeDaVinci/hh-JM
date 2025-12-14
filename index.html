@@ -163,7 +163,7 @@
         /* Glassmorphism upload controls */
         .upload-wrapper {
             position: fixed;
-            bottom: 140px;
+            bottom: 80px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
@@ -323,7 +323,7 @@
         /* Hint text */
         #hint-text {
             position: fixed;
-            bottom: 60px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             font-size: 11px;
@@ -343,6 +343,7 @@
             0%, 100% { opacity: 0.4; }
             50% { opacity: 1; }
         }
+        
     </style>
 </head>
 <body>
@@ -522,9 +523,16 @@
                 // Parameter for heart outline (0 to 2π)
                 const u = (layerIndex / layers) * Math.PI * 2;
                 
+                // 性能优化：缓存三角函数计算
+                const sinU = Math.sin(u);
+                const cosU = Math.cos(u);
+                const cos2U = Math.cos(2 * u);
+                const cos3U = Math.cos(3 * u);
+                const cos4U = Math.cos(4 * u);
+                
                 // Classic heart parametric equations (most beautiful heart curve)
-                const heartX = 16 * Math.pow(Math.sin(u), 3);
-                const heartY = 13 * Math.cos(u) - 5 * Math.cos(2 * u) - 2 * Math.cos(3 * u) - Math.cos(4 * u);
+                const heartX = 16 * sinU * sinU * sinU;
+                const heartY = 13 * cosU - 5 * cos2U - 2 * cos3U - cos4U;
                 
                 // Normalize to unit scale
                 const normX = heartX / 17;
@@ -592,6 +600,14 @@
                 this.mainGroup = new THREE.Group();
                 this.handLandmarker = null;
                 this.webcamRunning = false;
+                
+                // 性能优化：手势检测节流计数器
+                this.gestureDetectionCounter = 0;
+                this.gestureDetectionInterval = 2; // 每2帧检测一次，降低CPU占用
+                
+                // 性能优化：重用向量对象，避免GC压力
+                this.tempVec1 = new THREE.Vector3();
+                this.tempVec2 = new THREE.Vector3();
                 
                 this.init();
             }
@@ -858,17 +874,14 @@
                     'image/微信图片_20251214150740_23_72.jpg',
                     'image/微信图片_20251214150741_24_72.jpg',
                     'image/微信图片_20251214150742_25_72.jpg',
-                    'image/微信图片_20251214150742_25_72(1).jpg',
-                    'image/微信图片_20251214150742_25_72(2).jpg',
                     'image/微信图片_20251214150745_26_72.jpg',
                     'image/微信图片_20251214150748_27_72.jpg',
                     'image/微信图片_20251214150748_27_72(1).jpg',
-                    'image/微信图片_20251214150748_27_72(2).jpg',
+                    
                     'image/微信图片_20251214150750_28_72.jpg',
                     'image/微信图片_20251214150754_29_72.jpg',
                     'image/微信图片_20251214150755_30_72.jpg',
-                    'image/微信图片_20251214150755_30_72(1).jpg',
-                    'image/微信图片_20251214150755_30_72(2).jpg',
+                    
                     'image/微信图片_20251214150758_31_72.jpg',
                     'image/微信图片_20251214150801_32_72.jpg',
                     'image/微信图片_20251214150801_32_72(1).jpg'
@@ -1112,12 +1125,16 @@
                     }
                 });
                 
-                // Window resize
+                // Window resize - 性能优化：添加防抖，避免频繁触发
+                let resizeTimeout;
                 window.addEventListener('resize', () => {
-                    this.camera.aspect = window.innerWidth / window.innerHeight;
-                    this.camera.updateProjectionMatrix();
-                    this.renderer.setSize(window.innerWidth, window.innerHeight);
-                    this.composer.setSize(window.innerWidth, window.innerHeight);
+                    clearTimeout(resizeTimeout);
+                    resizeTimeout = setTimeout(() => {
+                        this.camera.aspect = window.innerWidth / window.innerHeight;
+                        this.camera.updateProjectionMatrix();
+                        this.renderer.setSize(window.innerWidth, window.innerHeight);
+                        this.composer.setSize(window.innerWidth, window.innerHeight);
+                    }, 100); // 100ms防抖延迟
                 });
                 
                 // Photo upload
@@ -1313,13 +1330,22 @@
                 STATE.handCenter.x = palm.x;
                 STATE.handCenter.y = palm.y;
                 
-                // Calculate distances
-                const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y, thumb.z - index.z);
+                // Calculate distances - 性能优化：避免不必要的Math.hypot调用
+                const dx = thumb.x - index.x;
+                const dy = thumb.y - index.y;
+                const dz = thumb.z - index.z;
+                const pinchDist = Math.sqrt(dx * dx + dy * dy + dz * dz);
                 
                 const fingerTips = [index, middle, ring, pinky];
-                const avgFingerDist = fingerTips.reduce((sum, tip) => {
-                    return sum + Math.hypot(tip.x - wrist.x, tip.y - wrist.y, tip.z - wrist.z);
-                }, 0) / fingerTips.length;
+                let sumDist = 0;
+                for (let i = 0; i < fingerTips.length; i++) {
+                    const tip = fingerTips[i];
+                    const dx = tip.x - wrist.x;
+                    const dy = tip.y - wrist.y;
+                    const dz = tip.z - wrist.z;
+                    sumDist += Math.sqrt(dx * dx + dy * dy + dz * dz);
+                }
+                const avgFingerDist = sumDist / fingerTips.length;
                 
                 // Gesture recognition (only GALAXY and FOCUS)
                 let newMode = STATE.mode;
@@ -1369,21 +1395,22 @@
                         // Smooth position transition - all particles are already hearts
                         const progress = STATE.transitionProgress;
                         
+                        // 性能优化：重用向量对象，避免每帧创建大量临时对象
                         this.particles.forEach((p, i) => {
                             if (p.type !== 'PHOTO') {
                                 // Interpolate positions from heart shape to galaxy scatter
                                 const t = i / this.particles.length;
                                 p.setHeartPosition(t);
-                                const heartTarget = p.target.clone();
+                                this.tempVec1.copy(p.target);
                                 
                                 p.setGalaxyPosition();
-                                const galaxyTarget = p.target.clone();
+                                this.tempVec2.copy(p.target);
                                 
                                 // Lerp between heart and galaxy positions
-                                p.target.lerpVectors(heartTarget, galaxyTarget, progress);
+                                p.target.lerpVectors(this.tempVec1, this.tempVec2, progress);
                                 
                                 // Gradually apply size change during transition
-                                const depth = galaxyTarget.z;
+                                const depth = this.tempVec2.z;
                                 const normalizedDepth = (depth + 80) / 160;
                                 const scale = 0.3 + (7.5 - 0.3) * normalizedDepth; // Updated to match new range
                                 const targetScale = 1 + (scale - 1) * progress;
@@ -1393,19 +1420,27 @@
                     }
                 }
                 
-                // MediaPipe hand detection
-                if (this.handLandmarker && this.webcamRunning) {
-                    const video = document.getElementById('webcam');
-                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                        const results = this.handLandmarker.detectForVideo(video, time);
-                        if (results.landmarks) {
-                            this.processGestures(results.landmarks);
+                // MediaPipe hand detection - 性能优化：每N帧检测一次，降低CPU占用
+                this.gestureDetectionCounter++;
+                if (this.gestureDetectionCounter >= this.gestureDetectionInterval) {
+                    this.gestureDetectionCounter = 0;
+                    
+                    if (this.handLandmarker && this.webcamRunning) {
+                        const video = document.getElementById('webcam');
+                        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                            const results = this.handLandmarker.detectForVideo(video, time);
+                            if (results.landmarks) {
+                                this.processGestures(results.landmarks);
+                            }
                         }
                     }
                 }
                 
-                // Update particle positions
-                this.particles.forEach(p => p.update(0.05));
+                // Update particle positions - 性能优化：使用普通for循环，比forEach稍快
+                const damping = 0.05;
+                for (let i = 0; i < this.particles.length; i++) {
+                    this.particles[i].update(damping);
+                }
                 
                 // Smooth camera zoom (from mouse wheel)
                 STATE.cameraZoom += (STATE.targetCameraZoom - STATE.cameraZoom) * 0.1;
