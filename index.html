@@ -10,6 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
     
+    <!-- SoundManager2 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/soundmanager2/2.97a.20150601/script/soundmanager2-nodebug-jsmin.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -344,6 +347,71 @@
             50% { opacity: 1; }
         }
         
+        /* Music control button */
+        #music-control {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 0, 85, 0.1);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 2px solid #ff0055;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(255, 0, 85, 0.2);
+        }
+        
+        #music-control:hover {
+            background: rgba(255, 0, 85, 0.2);
+            box-shadow: 0 8px 40px rgba(255, 0, 85, 0.4);
+            transform: translateY(-3px) scale(1.05);
+        }
+        
+        #music-control svg {
+            width: 24px;
+            height: 24px;
+            fill: #ff0055;
+        }
+        
+        #music-control.playing svg.play-icon {
+            display: none;
+        }
+        
+        #music-control.playing svg.pause-icon {
+            display: block;
+        }
+        
+        #music-control:not(.playing) svg.play-icon {
+            display: block;
+        }
+        
+        #music-control:not(.playing) svg.pause-icon {
+            display: none;
+        }
+        
+        /* Pulse animation for music control when not playing */
+        #music-control:not(.playing) {
+            animation: musicPulse 2s infinite;
+        }
+        
+        @keyframes musicPulse {
+            0%, 100% {
+                box-shadow: 0 8px 32px rgba(255, 0, 85, 0.2);
+                transform: scale(1);
+            }
+            50% {
+                box-shadow: 0 8px 48px rgba(255, 0, 85, 0.6);
+                transform: scale(1.1);
+            }
+        }
+        
     </style>
 </head>
 <body>
@@ -369,7 +437,7 @@
             ADD MOMENT
             <input type="file" id="photo-upload" accept="image/*" multiple>
         </label>
-        <div class="hint-text">Open hand for hearts ✋ | Pinch to focus 👌 | Press 'H' to hide UI</div>
+        <div class="hint-text">Open hand for hearts ✋ | Pinch to focus 👌 | Press 'H' to hide UI | Press 'M' for music</div>
     </div>
     
     <!-- Canvas Container -->
@@ -390,7 +458,17 @@
     </div>
     
     <!-- Hint text -->
-    <div id="hint-text">🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide</div>
+    <div id="hint-text">🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide | M for music 🎵</div>
+    
+    <!-- Music Control Button -->
+    <div id="music-control" title="点击播放音乐 🎵 (快捷键: M)">
+        <svg class="play-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 5v14l11-7z"/>
+        </svg>
+        <svg class="pause-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M6 4h4v16H6zM14 4h4v16h-4z"/>
+        </svg>
+    </div>
     
     <!-- Import Map -->
     <script type="importmap">
@@ -426,7 +504,8 @@
             isDragging: false, // Mouse drag state
             dragStart: { x: 0, y: 0 }, // Drag start position
             dragRotation: { x: 0, y: 0 }, // Accumulated rotation from drag
-            targetDragRotation: { x: 0, y: 0 } // Target rotation for smooth interpolation
+            targetDragRotation: { x: 0, y: 0 }, // Target rotation for smooth interpolation
+            userHasInteracted: false // Track if user has interacted with page
         };
         
         // ==================== Particle Class ====================
@@ -609,6 +688,9 @@
                 this.tempVec1 = new THREE.Vector3();
                 this.tempVec2 = new THREE.Vector3();
                 
+                // 音频相关
+                this.backgroundMusic = null;
+                
                 this.init();
             }
             
@@ -621,6 +703,7 @@
                 this.createProceduralTextures();
                 this.createParticles();
                 this.setupEventListeners();
+                this.initSoundManager();
                 
                 await this.initMediaPipe();
                 
@@ -1156,8 +1239,18 @@
                     }
                 });
                 
+                // Music control button
+                const musicControl = document.getElementById('music-control');
+                musicControl.addEventListener('click', () => {
+                    this.toggleBackgroundMusic();
+                    musicControl.classList.toggle('playing');
+                });
+                
                 // Keyboard - Hide UI and mode control
                 document.addEventListener('keydown', (e) => {
+                    // 尝试在第一次交互时播放音乐
+                    this.tryAutoPlayOnInteraction();
+                    
                     if (e.key.toLowerCase() === 'h') {
                         const title = document.getElementById('title');
                         const wrapper = document.getElementById('upload-wrapper');
@@ -1165,13 +1258,18 @@
                         title.classList.toggle('ui-hidden');
                         wrapper.classList.toggle('ui-hidden');
                         hintText.classList.toggle('ui-hidden');
+                    } else if (e.key.toLowerCase() === 'm') {
+                        // Toggle music with M key
+                        const musicControl = document.getElementById('music-control');
+                        this.toggleBackgroundMusic();
+                        musicControl.classList.toggle('playing');
                     } else if (e.key === ' ' || e.key === 'Escape') {
                         if (STATE.mode === 'FOCUS') {
                             STATE.mode = 'GALAXY';
                             STATE.focusedPhoto = null;
                             this.updateParticlePositions();
                             const hintText = document.getElementById('hint-text');
-                            hintText.textContent = '🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide';
+                            hintText.textContent = '🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide | M for music 🎵';
                             console.log('⌨️ Keyboard: Returned to GALAXY mode');
                         }
                     }
@@ -1190,6 +1288,9 @@
                         mouseDownPos.y = e.clientY;
                         hasMoved = false;
                         document.body.style.cursor = 'grabbing';
+                        
+                        // 尝试在第一次交互时播放音乐
+                        this.tryAutoPlayOnInteraction();
                     }
                 });
                 
@@ -1255,6 +1356,9 @@
                 
                 // Mouse click - switch to FOCUS mode (cycle through photos)
                 window.addEventListener('click', (e) => {
+                    // 尝试在第一次交互时播放音乐
+                    this.tryAutoPlayOnInteraction();
+                    
                     // Ignore if it was a drag operation
                     if (hasMoved) {
                         return;
@@ -1272,7 +1376,7 @@
                         STATE.mode = 'FOCUS';
                         STATE.isTransitioning = false;
                         this.updateParticlePositions();
-                        hintText.textContent = '🖱️ Drag to rotate | Click for next | 🎡 Scroll photos | Esc to return';
+                        hintText.textContent = '🖱️ Drag to rotate | Click for next | 🎡 Scroll photos | Esc to return | M for music 🎵';
                         console.log('🖱️ Mouse click: Switched to FOCUS mode');
                     } else if (STATE.mode === 'FOCUS') {
                         // Cycle to next photo
@@ -1281,6 +1385,104 @@
                         console.log('🖱️ Mouse click: Next photo');
                     }
                 });
+            }
+            
+            initSoundManager() {
+                // 初始化 SoundManager2
+                soundManager.setup({
+                    debugMode: true, // 启用调试模式查看详细信息
+                    preferFlash: false, // 优先使用 HTML5 Audio
+                    onready: () => {
+                        console.log('🔊 SoundManager2 ready');
+                        
+                        // 创建背景音乐
+                        this.backgroundMusic = soundManager.createSound({
+                            id: 'bgMusic',
+                            url: 'audio/xiaoyu.mp3',
+                            autoLoad: true,
+                            autoPlay: false,
+                            loops: 1,
+                            volume: 50,
+                            onload: () => {
+                                console.log('🎵 Background music loaded successfully');
+                                console.log('🎵 Duration:', this.backgroundMusic.duration, 'ms');
+                            },
+                            onplay: () => {
+                                console.log('▶️ Background music started playing');
+                            },
+                            onfinish: () => {
+                                console.log('🎵 Background music finished');
+                            },
+                            onerror: () => {
+                                console.error('❌ Failed to load background music');
+                            }
+                        });
+                    },
+                    ontimeout: () => {
+                        console.warn('⚠️ SoundManager2 initialization timeout');
+                    }
+                });
+            }
+            
+            // 在用户第一次交互时尝试播放音乐
+            tryAutoPlayOnInteraction() {
+                if (!STATE.userHasInteracted && this.backgroundMusic) {
+                    STATE.userHasInteracted = true;
+                    console.log('👆 User first interaction detected, attempting to play music...');
+                    this.playBackgroundMusic();
+                }
+            }
+            
+            playBackgroundMusic() {
+                if (this.backgroundMusic) {
+                    try {
+                        // 检查音频是否已加载
+                        if (this.backgroundMusic.readyState === 0) {
+                            console.log('⏳ Music is still loading, please wait...');
+                            return;
+                        }
+                        
+                        this.backgroundMusic.play({
+                            onplay: () => {
+                                console.log('▶️ Background music is now playing');
+                                const musicControl = document.getElementById('music-control');
+                                if (musicControl) {
+                                    musicControl.classList.add('playing');
+                                }
+                            },
+                            onerror: (errorCode) => {
+                                console.error('❌ Failed to play music. Error code:', errorCode);
+                                console.error('音频URL:', this.backgroundMusic.url);
+                                console.error('ReadyState:', this.backgroundMusic.readyState);
+                            }
+                        });
+                        
+                        console.log('▶️ Attempting to play background music...');
+                    } catch (error) {
+                        console.warn('⚠️ Exception when trying to play music:', error);
+                    }
+                }
+            }
+            
+            pauseBackgroundMusic() {
+                if (this.backgroundMusic) {
+                    this.backgroundMusic.pause();
+                    console.log('⏸️ Background music paused');
+                    const musicControl = document.getElementById('music-control');
+                    if (musicControl) {
+                        musicControl.classList.remove('playing');
+                    }
+                }
+            }
+            
+            toggleBackgroundMusic() {
+                if (this.backgroundMusic) {
+                    if (this.backgroundMusic.paused) {
+                        this.playBackgroundMusic();
+                    } else {
+                        this.pauseBackgroundMusic();
+                    }
+                }
             }
             
             async initMediaPipe() {
