@@ -1,0 +1,83 @@
+**角色设定：**
+你是一位世界级的 Creative Technologist，精通 Three.js (WebGL)、高阶数学几何算法、GLSL 着色器以及 Google MediaPipe 计算机视觉集成。
+
+**任务目标：**
+请编写一个单文件 (Single-File) 的 HTML 项目，文件名为 `heart_memory.html`。该项目必须包含完整的 HTML 结构、CSS 样式和基于 ES Module 的 JavaScript 代码，实现一个交互式的 **3D 实心爱心照片墙**。
+
+**核心技术栈约束 (必须严格遵守)：**
+1.  **依赖管理**：使用 `<script type="importmap">` 引入：
+    * `three`: https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js
+    * `three/addons/`: https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/
+    * `@mediapipe/tasks-vision`: https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm
+2.  **代码风格**：现代 ES6+，使用 Class 管理粒子系统，Async/Await 处理异步加载。
+
+---
+
+### 📝 详细开发规格说明书
+
+#### 1. UI 设计与 CSS 样式 (Visual Identity)
+* **字体**：引入 Google Fonts 'Playfair Display' (标题，优雅衬线) 和 'Montserrat' (正文，现代无衬线)。
+* **配色系统**：
+    * 背景：深邃星空黑 `#050505`。
+    * 主色调：霓虹粉 `#ff0055`，玫瑰金 `#e0bfb8`，纯白辉光 `#ffffff`。
+* **UI 组件细节**：
+    * **Loader**：全屏黑色背景，中间为一个用 CSS 实现的跳动爱心动画，下方文字 "LOADING MEMORIES..." (字间距 2px)。
+    * **标题**：顶部居中 `<h1>` "ETERNAL HEART"，字号 60px，使用 `-webkit-background-clip: text` 实现流体渐变色 (粉色到紫色)，并添加 `text-shadow` 辉光。
+    * **上传控件**：容器 `.upload-wrapper`。按钮样式为“玻璃拟态 (Glassmorphism)”，半透明背景，粉色边框，文字 "ADD MOMENT"。
+    * **Webcam 预览**：右下角，圆形遮罩 (border-radius: 50%)，带粉色呼吸灯边框效果。初始 `opacity: 0`。
+    * **快捷键提示**：底部微弱文字 "Press 'H' to Hide UI"。
+
+#### 2. Three.js 场景构建 (Scene Setup)
+* **渲染器**：开启抗锯齿，ToneMapping 使用 `ACESFilmicToneMapping` (更具电影感)，曝光度 1.2。
+* **相机**：透视相机，位置 (0, 0, 50)，看向原点。
+* **后期处理 (Post-Processing)**：
+    * 必须使用 `EffectComposer`。
+    * **UnrealBloomPass** (关键)：Threshold: 0.2, Strength: 1.5, Radius: 0.5。让爱心粒子产生强烈的唯美辉光。
+* **灯光系统**：
+    * AmbientLight: 深紫色 (intensity 0.5)。
+    * PointLight: 位于爱心中心 (0,0,0)，颜色红色，强度 5，照亮内部照片。
+    * SpotLight 1: 位置 (30, 30, 30)，颜色玫瑰金。
+    * SpotLight 2: 位置 (-30, -30, -30)，颜色青蓝色 (Cyan)，制造冷暖色温对比 (Cyberpunk 感)。
+
+#### 3. 粒子系统与核心算法 (Content & Geometry)
+* **粒子总数**：约 2000 个填充粒子 + 1000 个漂浮尘埃。
+* **几何体混合**：
+    * **Photo Holder**: `BoxGeometry` (薄片)，用于贴图照片。
+    * **Fillers**: `OctahedronGeometry` (八面体/钻石形状) 和 `SphereGeometry`。材质为 `MeshStandardMaterial`，高金属度 (metalness: 0.9)，粗糙度 (roughness: 0.1)。
+* **程序化纹理 (Procedural Texture)**：
+    * 移除原本的糖果手杖逻辑。
+    * **新任务**：创建一个 `CanvasTexture`，绘制一个白底粉色的径向渐变圆点，用于装饰性粒子。
+* **照片墙功能**：
+    * 默认生成一张 Canvas 纹理，底色为粉色，写有白色文字 "LOVE"。
+    * **图片上传逻辑**：保持原有的 `FileReader` 读取逻辑，但加载后的纹理必须设置 `t.colorSpace = THREE.SRGBColorSpace` 并按比例调整几何体大小。
+
+#### 4. 状态机与动画算法 (State Machine - The Core)
+定义全局 `STATE`，在 `animate` 循环中通过 `lerp` (插值 0.05) 更新粒子位置。
+
+* **Mode 1: HEART (3D 实心爱心 - 核心重构)**
+    * **数学逻辑**：粒子必须分布在心形体积**内部**及表面。
+    * 算法参考：使用拒绝采样 (Rejection Sampling) 或球坐标映射。
+    * 核心公式参考：
+        $x = 16 \sin^3(t)$
+        $y = 13 \cos(t) - 5 \cos(2t) - 2 \cos(3t) - \cos(4t)$
+        $z$ 轴需要赋予厚度变化 (例如根据 y 值调整 z 的范围)，形成 3D 饱满感。
+    * 粒子需要根据心形中心略微缓慢自转。
+
+* **Mode 2: GALAXY (星系散落)**
+    * 粒子形成一个巨大的旋转圆环或球体，半径 20~40，模拟宇宙星尘。
+
+* **Mode 3: FOCUS (照片聚焦)**
+    * 逻辑：从粒子数组中找到 `type === 'PHOTO'` 的对象。
+    * 随机或按顺序选中一张照片，移动到相机正前方 (0, 0, 30)，放大 (Scale x 5)。
+    * 其他所有非焦点粒子被推向远处背景 (z < -20) 并降低不透明度。
+
+#### 5. MediaPipe 视觉交互 (CV Integration)
+* **模型**：使用 `FilesetResolver` 和 `HandLandmarker` (GPU 委托)。
+* **手势控制逻辑**：
+    * **Fist (握拳)**：触发 **HEART** 模式 (将散落的记忆凝聚成心)。
+    * **Open Hand (五指张开)**：触发 **GALAXY** 模式 (记忆炸裂散开)。
+    * **Pinch (食指拇指捏合)**：触发 **FOCUS** 模式 (检视单张照片)。
+* **动态映射**：
+    * 当检测到手时，将手掌中心 (Landmark 9) 的 X/Y 移动映射为整个 3D 场景 (`mainGroup`) 的 `rotation.x` 和 `rotation.y`，实现视差互动效果。
+
+请综合以上所有要求，输出最终的代码。

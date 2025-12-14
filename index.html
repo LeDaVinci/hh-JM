@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eternal Heart - 3D Memory Gallery</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            cursor: grab;
+        }
+        
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        
+        /* Loader with beating heart animation */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #050505;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.8s ease-out;
+        }
+        
+        #loader.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .hearts-container {
+            display: flex;
+            gap: 80px;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .heart-loader {
+            width: 120px;
+            height: 120px;
+            position: relative;
+            animation: heartbeat 1.2s infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .heart-loader:first-child {
+            animation-delay: 0s;
+        }
+        
+        .heart-loader:last-child {
+            animation-delay: 0.6s;
+        }
+        
+        .heart-loader::before,
+        .heart-loader::after {
+            content: "";
+            position: absolute;
+            top: 30px;
+            width: 60px;
+            height: 96px;
+            background: #ff0055;
+            border-radius: 60px 60px 0 0;
+            z-index: 1;
+        }
+        
+        .heart-loader::before {
+            left: 30px;
+            transform: rotate(-45deg);
+            transform-origin: 0 100%;
+        }
+        
+        .heart-loader::after {
+            left: 0;
+            transform: rotate(45deg);
+            transform-origin: 100% 100%;
+        }
+        
+        .heart-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            font-weight: 700;
+            color: #ffffff;
+            z-index: 2;
+            font-family: 'Playfair Display', serif;
+            text-shadow: 0 3px 6px rgba(0, 0, 0, 0.5);
+            letter-spacing: 0px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            10%, 30% { transform: scale(1.1); }
+            20%, 40% { transform: scale(1); }
+        }
+        
+        #loader-text {
+            margin-top: 60px;
+            font-size: 14px;
+            letter-spacing: 2px;
+            color: #e0bfb8;
+            font-weight: 300;
+        }
+        
+        /* Title with gradient */
+        h1 {
+            position: fixed;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Playfair Display', serif;
+            font-size: 60px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff0055 0%, #8b00ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 0, 85, 0.6),
+                         0 0 60px rgba(255, 0, 85, 0.4);
+            z-index: 100;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        /* Glassmorphism upload controls */
+        .upload-wrapper {
+            position: fixed;
+            bottom: 140px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+            transition: opacity 0.3s ease;
+        }
+        
+        .upload-btn {
+            position: relative;
+            padding: 18px 45px;
+            background: rgba(255, 0, 85, 0.1);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 2px solid #ff0055;
+            border-radius: 50px;
+            color: #ff0055;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(255, 0, 85, 0.2);
+        }
+        
+        .upload-btn:hover {
+            background: rgba(255, 0, 85, 0.2);
+            box-shadow: 0 8px 40px rgba(255, 0, 85, 0.4);
+            transform: translateY(-3px);
+        }
+        
+        .upload-btn input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        
+        .hint-text {
+            font-size: 11px;
+            color: rgba(224, 191, 184, 0.5);
+            letter-spacing: 1px;
+            font-weight: 300;
+        }
+        
+        /* UI Hidden State */
+        .ui-hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        
+        /* Webcam with breathing border */
+        #webcam-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 3px solid #ff0055;
+            opacity: 0.5;
+            z-index: 50;
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.5);
+            animation: breathe 3s infinite ease-in-out;
+            transition: opacity 0.3s ease;
+            backdrop-filter: blur(5px);
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        @keyframes breathe {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 0, 85, 0.5); }
+            50% { box-shadow: 0 0 40px rgba(255, 0, 85, 0.8); }
+        }
+        
+        #webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transform: scaleX(-1); /* Mirror video for natural hand movement */
+        }
+        
+        #webcam-canvas {
+            display: none;
+        }
+        
+        #webcam-label {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: #ff0055;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 4px 10px;
+            border-radius: 10px;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+            z-index: 10;
+        }
+        
+        /* Gesture toggle switch */
+        #gesture-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 11;
+        }
+        
+        .toggle-switch input[type="checkbox"] {
+            display: none;
+        }
+        
+        .toggle-label {
+            display: block;
+            width: 40px;
+            height: 20px;
+            background: rgba(100, 100, 100, 0.8);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            border: 1px solid rgba(255, 0, 85, 0.3);
+        }
+        
+        .toggle-switch-btn {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .toggle-switch input[type="checkbox"]:checked + .toggle-label {
+            background: #ff0055;
+        }
+        
+        .toggle-switch input[type="checkbox"]:checked + .toggle-label .toggle-switch-btn {
+            transform: translateX(20px);
+        }
+        
+        .toggle-label:hover {
+            opacity: 0.9;
+        }
+        
+        /* Hint text */
+        #hint-text {
+            position: fixed;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.6);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 16px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+            font-weight: 500;
+            z-index: 40;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 0, 85, 0.3);
+            animation: fadeInOut 4s ease-in-out infinite;
+        }
+        
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loader -->
+    <div id="loader">
+        <div class="hearts-container">
+            <div class="heart-loader">
+                <span class="heart-text">Hh</span>
+            </div>
+            <div class="heart-loader">
+                <span class="heart-text">JM</span>
+            </div>
+        </div>
+        <div id="loader-text">LOADING MEMORIES...</div>
+    </div>
+    
+    <!-- Title -->
+    <h1 id="title">ETERNAL HEART</h1>
+    
+    <!-- Upload Controls -->
+    <div class="upload-wrapper" id="upload-wrapper">
+        <label class="upload-btn">
+            ADD MOMENT
+            <input type="file" id="photo-upload" accept="image/*" multiple>
+        </label>
+        <div class="hint-text">Open hand for hearts ✋ | Pinch to focus 👌 | Press 'H' to hide UI</div>
+    </div>
+    
+    <!-- Canvas Container -->
+    <div id="canvas-container"></div>
+    
+    <!-- Webcam for CV -->
+    <div id="webcam-container">
+        <div id="webcam-label">GESTURE CONTROL</div>
+        <div id="gesture-toggle" class="toggle-switch" title="Toggle gesture recognition">
+            <input type="checkbox" id="gesture-checkbox">
+            <label for="gesture-checkbox" class="toggle-label">
+                <span class="toggle-inner"></span>
+                <span class="toggle-switch-btn"></span>
+            </label>
+        </div>
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="webcam-canvas" width="320" height="240"></canvas>
+    </div>
+    
+    <!-- Hint text -->
+    <div id="hint-text">🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide</div>
+    
+    <!-- Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/+esm"
+        }
+    }
+    </script>
+    
+    <!-- Main Application -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+        
+        // ==================== Global State ====================
+        const STATE = {
+            mode: 'HEART', // 'HEART', 'GALAXY', 'FOCUS'
+            handCenter: { x: 0, y: 0 },
+            mousePosition: { x: 0.5, y: 0.5 }, // Mouse position for control
+            focusedPhoto: null,
+            focusIndex: 0,
+            transitionProgress: 0, // 0 to 1, for HEART to GALAXY transition
+            isTransitioning: true,
+            cameraZoom: 120, // Camera Z position (default)
+            targetCameraZoom: 120, // Target for smooth zoom
+            gestureEnabled: false, // Gesture recognition toggle
+            isDragging: false, // Mouse drag state
+            dragStart: { x: 0, y: 0 }, // Drag start position
+            dragRotation: { x: 0, y: 0 }, // Accumulated rotation from drag
+            targetDragRotation: { x: 0, y: 0 } // Target rotation for smooth interpolation
+        };
+        
+        // ==================== Particle Class ====================
+        class Particle {
+            constructor(mesh, type) {
+                this.mesh = mesh;
+                this.type = type; // 'PHOTO', 'FILLER', 'DUST'
+                this.target = new THREE.Vector3();
+                this.baseTarget = new THREE.Vector3(); // Store base position for drift
+                this.velocity = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01,
+                    (Math.random() - 0.5) * 0.01
+                );
+                // Sparkle effect (10% of particles for better performance)
+                this.hasSparkle = Math.random() < 0.1;
+                this.sparklePhase = Math.random() * Math.PI * 2;
+                this.sparkleSpeed = 0.5 + Math.random() * 1.5;
+                this.baseEmissiveIntensity = mesh.material.emissiveIntensity || 0.4;
+                // Drift parameters for ambient movement
+                this.driftPhase = Math.random() * Math.PI * 2;
+                this.driftSpeed = 0.3 + Math.random() * 0.4;
+                this.driftAmplitude = 1.5 + Math.random() * 2.5;
+            }
+            
+            update(lerpFactor = 0.05) {
+                // Apply ambient drift movement (optimized - no new object creation)
+                this.driftPhase += 0.01 * this.driftSpeed;
+                const driftX = Math.sin(this.driftPhase) * this.driftAmplitude;
+                const driftY = Math.cos(this.driftPhase * 1.3) * this.driftAmplitude;
+                const driftZ = Math.sin(this.driftPhase * 0.7) * this.driftAmplitude * 0.5;
+                
+                // Direct lerp without creating new Vector3 (reuse existing position)
+                const targetX = this.target.x + driftX;
+                const targetY = this.target.y + driftY;
+                const targetZ = this.target.z + driftZ;
+                
+                this.mesh.position.x += (targetX - this.mesh.position.x) * lerpFactor;
+                this.mesh.position.y += (targetY - this.mesh.position.y) * lerpFactor;
+                this.mesh.position.z += (targetZ - this.mesh.position.z) * lerpFactor;
+                
+                // Dynamic size based on depth (Z position) in GALAXY mode - 3x larger range
+                if (this.type !== 'PHOTO' && STATE.mode === 'GALAXY') {
+                    // Closer particles (positive Z) are MUCH bigger, farther particles are smaller
+                    const depth = this.mesh.position.z;
+                    const minScale = 0.3;
+                    const maxScale = 7.5; // 3x from 2.5 to 7.5
+                    // Map Z from [-80, 80] to [minScale, maxScale]
+                    const normalizedDepth = (depth + 80) / 160; // 0 to 1
+                    const scale = minScale + (maxScale - minScale) * normalizedDepth;
+                    this.mesh.scale.setScalar(scale);
+                } else if (this.type !== 'PHOTO' && STATE.mode === 'HEART') {
+                    // Reset to normal size in HEART mode
+                    this.mesh.scale.setScalar(1);
+                } else if (this.type !== 'PHOTO' && STATE.mode === 'FOCUS') {
+                    // Smaller particles in FOCUS mode to not obstruct photos
+                    const depth = this.mesh.position.z;
+                    const minScale = 0.2;
+                    const maxScale = 1.5;
+                    const normalizedDepth = (depth + 120) / 240; // Wider range for better distribution
+                    const scale = minScale + (maxScale - minScale) * normalizedDepth;
+                    this.mesh.scale.setScalar(scale);
+                }
+                
+                // Gentle rotation for 2D heart particles (only Z-axis to keep facing forward)
+                if (this.type !== 'PHOTO') {
+                    if (STATE.mode === 'GALAXY' || STATE.isTransitioning) {
+                        // Only rotate around Z-axis (in-plane rotation) to keep hearts facing forward
+                        this.mesh.rotation.z += 0.01;
+                    } else if (STATE.mode === 'HEART') {
+                        // Very gentle Z-axis rotation in HEART mode
+                        this.mesh.rotation.z += 0.002;
+                    }
+                }
+                
+                // Sparkle effect for selected particles
+                if (this.hasSparkle && this.type !== 'PHOTO' && this.mesh.material.emissive) {
+                    this.sparklePhase += 0.05 * this.sparkleSpeed;
+                    const sparkle = Math.sin(this.sparklePhase) * 0.5 + 0.5; // 0 to 1
+                    const intensity = this.baseEmissiveIntensity + sparkle * 0.6;
+                    this.mesh.material.emissiveIntensity = intensity;
+                }
+            }
+            
+            setHeartPosition(t) {
+                // Beautiful 3D Heart using classic parametric equations
+                const scale = 16;
+                
+                // Use layered approach for better distribution
+                const layers = 150;
+                const layerIndex = Math.floor(t * layers);
+                const particleInLayer = (t * layers) % 1;
+                
+                // Parameter for heart outline (0 to 2π)
+                const u = (layerIndex / layers) * Math.PI * 2;
+                
+                // Classic heart parametric equations (most beautiful heart curve)
+                const heartX = 16 * Math.pow(Math.sin(u), 3);
+                const heartY = 13 * Math.cos(u) - 5 * Math.cos(2 * u) - 2 * Math.cos(3 * u) - Math.cos(4 * u);
+                
+                // Normalize to unit scale
+                const normX = heartX / 17;
+                const normY = (heartY - 5) / 20;
+                
+                // Calculate thickness for 3D volume (thicker in center)
+                const distFromCenter = Math.sqrt(normX * normX + normY * normY);
+                const thickness = (1.0 - distFromCenter * 0.4) * 0.6;
+                
+                // Fill circular cross-section
+                const r = Math.sqrt(particleInLayer) * thickness;
+                const angle = particleInLayer * Math.PI * 2 * 17;
+                
+                const offsetZ = r * Math.cos(angle);
+                const offsetRadial = r * Math.sin(angle);
+                
+                // Apply offset perpendicular to heart curve
+                const normalAngle = Math.atan2(normY, normX);
+                const offsetX = offsetRadial * Math.cos(normalAngle) * 0.3;
+                const offsetY = offsetRadial * Math.sin(normalAngle) * 0.3;
+                
+                this.baseTarget.set(
+                    (normX + offsetX) * scale,
+                    (normY + offsetY) * scale,
+                    offsetZ * scale
+                );
+                this.target.copy(this.baseTarget);
+            }
+            
+            setGalaxyPosition() {
+                // Galaxy mode: random cosmic scatter (starry sky effect)
+                // Small hearts scattered randomly in space
+                
+                const radius = 30 + Math.random() * 50; // Large radius for wide scatter
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                this.baseTarget.set(
+                    radius * Math.sin(phi) * Math.cos(theta),
+                    radius * Math.sin(phi) * Math.sin(theta),
+                    radius * Math.cos(phi)
+                );
+                this.target.copy(this.baseTarget);
+            }
+            
+            setBackgroundPosition() {
+                const radius = 80 + Math.random() * 40;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                this.baseTarget.set(
+                    radius * Math.sin(phi) * Math.cos(theta),
+                    radius * Math.sin(phi) * Math.sin(theta),
+                    -50 - Math.random() * 30
+                );
+                this.target.copy(this.baseTarget);
+            }
+        }
+        
+        // ==================== Application Class ====================
+        class EternalHeartApp {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.particles = [];
+                this.mainGroup = new THREE.Group();
+                this.handLandmarker = null;
+                this.webcamRunning = false;
+                
+                this.init();
+            }
+            
+            async init() {
+                this.setupRenderer();
+                this.setupScene();
+                this.setupCamera();
+                this.setupLights();
+                this.setupPostProcessing();
+                this.createProceduralTextures();
+                this.createParticles();
+                this.setupEventListeners();
+                
+                await this.initMediaPipe();
+                
+                this.hideLoader();
+                this.animate();
+            }
+            
+            setupRenderer() {
+                this.renderer = new THREE.WebGLRenderer({ 
+                    antialias: true,
+                    powerPreference: 'high-performance' // Prefer dedicated GPU
+                });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                // Limit pixel ratio to 2 for better performance on high-DPI screens
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 0.9; // Reduced from 1.2 to 0.9 for less overexposure
+                this.container.appendChild(this.renderer.domElement);
+            }
+            
+            setupScene() {
+                this.scene = new THREE.Scene();
+                this.scene.add(this.mainGroup);
+            }
+            
+            setupCamera() {
+                this.camera = new THREE.PerspectiveCamera(
+                    45,
+                    window.innerWidth / window.innerHeight,
+                    0.1,
+                    1000
+                );
+                this.camera.position.set(0, 0, 120); // Increased from 70 to 120 for larger heart
+                this.camera.lookAt(0, 0, 0);
+            }
+            
+            setupLights() {
+                // Deep purple ambient (increased for much larger scene)
+                const ambient = new THREE.AmbientLight(0x6600cc, 1.0);
+                this.scene.add(ambient);
+                
+                // Red point light at heart center (increased for larger heart)
+                const pointLight = new THREE.PointLight(0xff0000, 30, 300);
+                pointLight.position.set(0, 0, 0);
+                this.mainGroup.add(pointLight);
+                
+                // Rose gold spotlight (increased)
+                const spotLight1 = new THREE.SpotLight(0xe0bfb8, 2500);
+                spotLight1.position.set(80, 80, 80);
+                spotLight1.angle = Math.PI / 4.5;
+                spotLight1.penumbra = 0.3;
+                this.scene.add(spotLight1);
+                
+                // Cyan spotlight for contrast (increased)
+                const spotLight2 = new THREE.SpotLight(0x00ffff, 2000);
+                spotLight2.position.set(-80, -80, -80);
+                spotLight2.angle = Math.PI / 4.5;
+                spotLight2.penumbra = 0.3;
+                this.scene.add(spotLight2);
+            }
+            
+            setupPostProcessing() {
+                this.composer = new EffectComposer(this.renderer);
+                
+                const renderPass = new RenderPass(this.scene, this.camera);
+                this.composer.addPass(renderPass);
+                
+                // Bloom effect for glowing photons
+                const bloomPass = new UnrealBloomPass(
+                    new THREE.Vector2(window.innerWidth, window.innerHeight),
+                    0.8,  // strength (reduced for better performance)
+                    0.5,  // radius
+                    0.8   // threshold (photos won't bloom, only emissive particles)
+                );
+                this.composer.addPass(bloomPass);
+            }
+            
+            createProceduralTextures() {
+                // Radial gradient dot texture (white to pink)
+                const canvas = document.createElement('canvas');
+                canvas.width = 128;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                
+                const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.5, '#ff0055');
+                gradient.addColorStop(1, 'rgba(255, 0, 85, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 128, 128);
+                
+                this.dotTexture = new THREE.CanvasTexture(canvas);
+            }
+            
+            createMiniHeartGeometry() {
+                // Create a 2D flat heart shape (always facing forward)
+                const heartShape = new THREE.Shape();
+                
+                const scale = 0.25; // Slightly larger for better visibility
+                
+                // Draw heart path using classic heart shape
+                heartShape.moveTo(0, 0);
+                heartShape.bezierCurveTo(0, -0.3, -0.6, -0.3, -0.6, 0);
+                heartShape.bezierCurveTo(-0.6, 0.3, 0, 0.6, 0, 1);
+                heartShape.bezierCurveTo(0, 0.6, 0.6, 0.3, 0.6, 0);
+                heartShape.bezierCurveTo(0.6, -0.3, 0, -0.3, 0, 0);
+                
+                // Use ShapeGeometry for 2D (no extrusion)
+                const geometry = new THREE.ShapeGeometry(heartShape);
+                geometry.scale(scale, scale, scale);
+                geometry.center();
+                
+                return geometry;
+            }
+            
+            createHeartFragmentGeometry() {
+                // Create 2D broken heart fragment (half heart with jagged edge)
+                const fragmentShape = new THREE.Shape();
+                
+                const scale = 0.22;
+                
+                // Draw half heart with jagged edge
+                fragmentShape.moveTo(0, 0);
+                fragmentShape.lineTo(0.1, -0.1); // Jagged edge
+                fragmentShape.lineTo(0, -0.2);
+                fragmentShape.lineTo(0.15, -0.3);
+                fragmentShape.bezierCurveTo(0.15, -0.3, -0.3, -0.3, -0.3, 0);
+                fragmentShape.bezierCurveTo(-0.3, 0.3, 0, 0.6, 0, 1);
+                fragmentShape.lineTo(0, 0);
+                
+                // Use ShapeGeometry for 2D (no extrusion)
+                const geometry = new THREE.ShapeGeometry(fragmentShape);
+                geometry.scale(scale, scale, scale);
+                geometry.center();
+                
+                return geometry;
+            }
+            
+            createParticles() {
+                // Filler particles - mix of hearts and fragments
+                const fillerCount = 5000; // Reduced from 10000 for better performance
+                
+                const miniHeartGeo = this.createMiniHeartGeometry();
+                const fragmentGeo = this.createHeartFragmentGeometry();
+                
+                // Glowing photon materials (2D, visible from both sides)
+                const pinkMat = new THREE.MeshStandardMaterial({
+                    color: 0xff0055,
+                    metalness: 0.7,
+                    roughness: 0.2,
+                    emissive: 0xff0055,
+                    emissiveIntensity: 0.5,
+                    transparent: true,
+                    opacity: 0.7,
+                    side: THREE.DoubleSide
+                });
+                
+                const goldMat = new THREE.MeshStandardMaterial({
+                    color: 0xe0bfb8,
+                    metalness: 0.7,
+                    roughness: 0.2,
+                    emissive: 0xe0bfb8,
+                    emissiveIntensity: 0.4,
+                    transparent: true,
+                    opacity: 0.7,
+                    side: THREE.DoubleSide
+                });
+                
+                const whiteMat = new THREE.MeshStandardMaterial({
+                    color: 0xffffff,
+                    metalness: 0.7,
+                    roughness: 0.2,
+                    emissive: 0xffffff,
+                    emissiveIntensity: 0.4,
+                    transparent: true,
+                    opacity: 0.7,
+                    side: THREE.DoubleSide
+                });
+                
+                for (let i = 0; i < fillerCount; i++) {
+                    const mat = Math.random() < 0.4 ? pinkMat : (Math.random() < 0.5 ? goldMat : whiteMat);
+                    
+                    // 70% complete hearts, 30% fragments
+                    const geo = Math.random() < 0.7 ? miniHeartGeo : fragmentGeo;
+                    // Share materials instead of cloning (clone only if sparkle needed)
+                    const heartMesh = new THREE.Mesh(geo, mat);
+                    this.mainGroup.add(heartMesh);
+                    
+                    const particle = new Particle(heartMesh, 'FILLER');
+                    // Clone material only for sparkle particles
+                    if (particle.hasSparkle && heartMesh.material.emissive) {
+                        heartMesh.material = mat.clone();
+                    }
+                    this.particles.push(particle);
+                }
+                
+                // Dust particles - tiny glowing hearts (mix with fragments)
+                const dustCount = 1500; // Reduced from 3000 for better performance
+                const dustMat = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.7,
+                    side: THREE.DoubleSide
+                });
+                
+                const tinyHeartGeo = this.createMiniHeartGeometry();
+                
+                for (let i = 0; i < dustCount; i++) {
+                    // 60% hearts, 40% fragments for variety
+                    const geo = Math.random() < 0.6 ? tinyHeartGeo : fragmentGeo;
+                    // Share material for all dust particles (they don't need sparkle)
+                    const heartMesh = new THREE.Mesh(geo, dustMat);
+                    this.mainGroup.add(heartMesh);
+                    
+                    const particle = new Particle(heartMesh, 'DUST');
+                    this.particles.push(particle);
+                }
+                
+                // Load default photos from image folder
+                this.loadDefaultPhotos();
+                
+                // Set initial positions
+                this.updateParticlePositions();
+            }
+            
+            async loadDefaultPhotos() {
+                // Static list of all images in image directory
+                const photoFiles = [
+                    'image/first.jpg',
+                    'image/微信图片_20251214145844_5_72.jpg',
+                    'image/微信图片_20251214145844_5_72(1).jpg',
+                    'image/微信图片_20251214150104_6_72.jpg',
+                    'image/微信图片_20251214150107_7_72.jpg',
+                    'image/微信图片_20251214150109_8_72.jpg',
+                    'image/微信图片_20251214150113_9_72.jpg',
+                    'image/微信图片_20251214150119_10_72.jpg',
+                    'image/微信图片_20251214150121_11_72.jpg',
+                    'image/微信图片_20251214150209_12_72.jpg',
+                    'image/微信图片_20251214150213_13_72.jpg',
+                    'image/微信图片_20251214150215_14_72.jpg',
+                    'image/微信图片_20251214150217_15_72.jpg',
+                    'image/微信图片_20251214150223_16_72.jpg',
+                    'image/微信图片_20251214150224_17_72.jpg',
+                    'image/微信图片_20251214150230_18_72.jpg',
+                    'image/微信图片_20251214150231_19_72.jpg',
+                    'image/微信图片_20251214150736_20_72.jpg',
+                    'image/微信图片_20251214150738_21_72.jpg',
+                    'image/微信图片_20251214150739_22_72.jpg',
+                    'image/微信图片_20251214150739_22_72(1).jpg',
+                    'image/微信图片_20251214150740_23_72.jpg',
+                    'image/微信图片_20251214150741_24_72.jpg',
+                    'image/微信图片_20251214150742_25_72.jpg',
+                    'image/微信图片_20251214150742_25_72(1).jpg',
+                    'image/微信图片_20251214150742_25_72(2).jpg',
+                    'image/微信图片_20251214150745_26_72.jpg',
+                    'image/微信图片_20251214150748_27_72.jpg',
+                    'image/微信图片_20251214150748_27_72(1).jpg',
+                    'image/微信图片_20251214150748_27_72(2).jpg',
+                    'image/微信图片_20251214150750_28_72.jpg',
+                    'image/微信图片_20251214150754_29_72.jpg',
+                    'image/微信图片_20251214150755_30_72.jpg',
+                    'image/微信图片_20251214150755_30_72(1).jpg',
+                    'image/微信图片_20251214150755_30_72(2).jpg',
+                    'image/微信图片_20251214150758_31_72.jpg',
+                    'image/微信图片_20251214150801_32_72.jpg',
+                    'image/微信图片_20251214150801_32_72(1).jpg'
+                ];
+                
+                console.log(`✅ Loading ${photoFiles.length} images from static list`);
+                
+                // Load all photos
+                const loader = new THREE.TextureLoader();
+                let loadedCount = 0;
+                let successCount = 0;
+                
+                photoFiles.forEach(path => {
+                    loader.load(
+                        path,
+                        (texture) => {
+                            texture.colorSpace = THREE.SRGBColorSpace;
+                            this.addPhotoToScene(texture);
+                            loadedCount++;
+                            successCount++;
+                            // Update positions after all photos loaded
+                            if (loadedCount === photoFiles.length) {
+                                console.log(`Successfully loaded ${successCount}/${photoFiles.length} photos`);
+                                this.updateParticlePositions();
+                            }
+                        },
+                        undefined,
+                        (error) => {
+                            console.warn(`Failed to load photo: ${path}`);
+                            loadedCount++;
+                            // If all failed, add default LOVE photo
+                            if (loadedCount === photoFiles.length && successCount === 0) {
+                                this.addDefaultLovePhoto();
+                            }
+                        }
+                    );
+                });
+            }
+            
+            addDefaultLovePhoto() {
+                // Fallback: Pink background with white "LOVE" text
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                
+                // Pink gradient background
+                const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+                gradient.addColorStop(0, '#ff0055');
+                gradient.addColorStop(1, '#ff5588');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 512, 512);
+                
+                // White text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 120px Playfair Display, serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('LOVE', 256, 256);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.colorSpace = THREE.SRGBColorSpace;
+                
+                this.addPhotoToScene(texture);
+            }
+            
+            addPhotoToScene(texture) {
+                // Photo mesh - preserve aspect ratio
+                const image = texture.image;
+                const aspectRatio = image ? image.width / image.height : 1;
+                
+                // Base size for photos (larger for bigger heart)
+                const baseSize = 3.5;
+                let width, height;
+                
+                if (aspectRatio > 1) {
+                    // Landscape
+                    width = baseSize;
+                    height = baseSize / aspectRatio;
+                } else {
+                    // Portrait or square
+                    height = baseSize;
+                    width = baseSize * aspectRatio;
+                }
+                
+                const photoGeo = new THREE.BoxGeometry(width, height, 0.08);
+                
+                // Use MeshBasicMaterial to show original photo without any effects
+                const photoMat = new THREE.MeshBasicMaterial({
+                    map: texture,
+                    side: THREE.DoubleSide,
+                    toneMapped: false  // Disable tone mapping to preserve original colors
+                });
+                const photoMesh = new THREE.Mesh(photoGeo, photoMat);
+                
+                this.mainGroup.add(photoMesh);
+                const particle = new Particle(photoMesh, 'PHOTO');
+                this.particles.push(particle);
+            }
+            
+            updateParticlePositions() {
+                const photos = this.particles.filter(p => p.type === 'PHOTO');
+                const others = this.particles.filter(p => p.type !== 'PHOTO');
+                
+                if (STATE.mode === 'HEART') {
+                    // Heart formation
+                    others.forEach((p, i) => {
+                        const t = i / others.length;
+                        p.setHeartPosition(t);
+                        // Reset size and opacity
+                        if (p.type !== 'PHOTO') {
+                            p.mesh.scale.setScalar(1);
+                            if (p.mesh.material.transparent && p.mesh.material.opacity !== undefined) {
+                                p.mesh.material.opacity = 0.5;
+                            }
+                        }
+                    });
+                    
+                    // Photos distributed in heart
+                    photos.forEach((p, i) => {
+                        const t = (i + 0.5) / (photos.length + 1);
+                        p.setHeartPosition(t);
+                        // Reset scale for all photos
+                        p.mesh.scale.setScalar(1);
+                    });
+                    
+                    // Reset focused photo
+                    if (STATE.focusedPhoto) {
+                        STATE.focusedPhoto.mesh.scale.setScalar(1);
+                        STATE.focusedPhoto = null;
+                    }
+                    
+                } else if (STATE.mode === 'GALAXY') {
+                    // Galaxy scatter - particles are already mini hearts
+                    this.particles.forEach(p => {
+                        p.setGalaxyPosition();
+                        // Reset opacity for non-photo particles
+                        if (p.type !== 'PHOTO') {
+                            if (p.mesh.material.transparent && p.mesh.material.opacity !== undefined) {
+                                p.mesh.material.opacity = 0.7;
+                            }
+                        }
+                        // Reset scale for photos
+                        if (p.type === 'PHOTO') {
+                            p.mesh.scale.setScalar(1);
+                        }
+                    });
+                    
+                    // Reset focused photo
+                    if (STATE.focusedPhoto) {
+                        STATE.focusedPhoto.mesh.scale.setScalar(1);
+                        STATE.focusedPhoto = null;
+                    }
+                    
+                } else if (STATE.mode === 'FOCUS') {
+                    // Focus mode: photos in front, particles scattered naturally around
+                    if (!STATE.focusedPhoto && photos.length > 0) {
+                        STATE.focusedPhoto = photos[STATE.focusIndex % photos.length];
+                        STATE.focusIndex++;
+                    }
+                    
+                    if (STATE.focusedPhoto) {
+                        // Main focused photo - prominent in center-front
+                        STATE.focusedPhoto.target.set(0, 0, 90);
+                        STATE.focusedPhoto.mesh.scale.setScalar(6);
+                        
+                        // Scatter particles naturally in full 3D space around photos
+                        others.forEach((p, idx) => {
+                            if (p.type !== 'PHOTO') {
+                                // Random spherical distribution (front and back)
+                                const radius = 50 + Math.random() * 60;
+                                const theta = Math.random() * Math.PI * 2;
+                                const phi = Math.random() * Math.PI;
+                                
+                                const x = radius * Math.sin(phi) * Math.cos(theta);
+                                const y = radius * Math.sin(phi) * Math.sin(theta);
+                                const z = radius * Math.cos(phi);
+                                
+                                // Mix particles in front and behind photos
+                                p.target.set(x, y, z);
+                                
+                                // Softer, ambient particles
+                                if (p.mesh.material.transparent) {
+                                    // Vary opacity based on distance from center
+                                    const distFromCenter = Math.sqrt(x*x + y*y + z*z);
+                                    const opacity = 0.3 + (distFromCenter / 120) * 0.4; // 0.3 to 0.7
+                                    p.mesh.material.opacity = Math.min(0.6, opacity);
+                                }
+                            }
+                        });
+                        
+                        // Display 6 other photos scattered around in a ring
+                        const otherPhotos = photos.filter(p => p !== STATE.focusedPhoto);
+                        const displayCount = Math.min(6, otherPhotos.length);
+                        
+                        for (let i = 0; i < displayCount; i++) {
+                            const p = otherPhotos[i];
+                            const angle = (i / displayCount) * Math.PI * 2;
+                            const radius = 40 + (i % 3) * 10; // Varied radius
+                            const depth = 40 + (i % 2) * 20; // Varied depth
+                            
+                            p.target.set(
+                                Math.cos(angle) * radius,
+                                Math.sin(angle) * radius * 0.6 + (Math.random() - 0.5) * 10,
+                                depth
+                            );
+                            
+                            // Varied sizes (2 to 4)
+                            const scale = 2 + (i % 3) * 0.6 + Math.random() * 0.4;
+                            p.mesh.scale.setScalar(scale);
+                        }
+                        
+                        // Rest scattered to far periphery
+                        for (let i = displayCount; i < otherPhotos.length; i++) {
+                            const angle = Math.random() * Math.PI * 2;
+                            const radius = 70 + Math.random() * 30;
+                            otherPhotos[i].target.set(
+                                Math.cos(angle) * radius,
+                                Math.sin(angle) * radius * 0.4,
+                                10 + Math.random() * 30
+                            );
+                            otherPhotos[i].mesh.scale.setScalar(1.8);
+                        }
+                    }
+                }
+            }
+            
+            setupEventListeners() {
+                // Gesture toggle switch
+                const gestureCheckbox = document.getElementById('gesture-checkbox');
+                gestureCheckbox.addEventListener('change', (e) => {
+                    STATE.gestureEnabled = e.target.checked;
+                    const webcamContainer = document.getElementById('webcam-container');
+                    if (STATE.gestureEnabled) {
+                        webcamContainer.style.opacity = '1';
+                        console.log('✅ Gesture recognition enabled');
+                    } else {
+                        webcamContainer.style.opacity = '0.5';
+                        STATE.handCenter = { x: 0, y: 0 }; // Reset hand position
+                        console.log('❌ Gesture recognition disabled');
+                    }
+                });
+                
+                // Window resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                    this.composer.setSize(window.innerWidth, window.innerHeight);
+                });
+                
+                // Photo upload
+                const uploadInput = document.getElementById('photo-upload');
+                uploadInput.addEventListener('change', (e) => {
+                    const files = e.target.files;
+                    if (files.length > 0) {
+                        Array.from(files).forEach(f => {
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                                new THREE.TextureLoader().load(ev.target.result, (t) => {
+                                    t.colorSpace = THREE.SRGBColorSpace;
+                                    this.addPhotoToScene(t);
+                                    this.updateParticlePositions();
+                                });
+                            };
+                            reader.readAsDataURL(f);
+                        });
+                    }
+                });
+                
+                // Keyboard - Hide UI and mode control
+                document.addEventListener('keydown', (e) => {
+                    if (e.key.toLowerCase() === 'h') {
+                        const title = document.getElementById('title');
+                        const wrapper = document.getElementById('upload-wrapper');
+                        const hintText = document.getElementById('hint-text');
+                        title.classList.toggle('ui-hidden');
+                        wrapper.classList.toggle('ui-hidden');
+                        hintText.classList.toggle('ui-hidden');
+                    } else if (e.key === ' ' || e.key === 'Escape') {
+                        if (STATE.mode === 'FOCUS') {
+                            STATE.mode = 'GALAXY';
+                            STATE.focusedPhoto = null;
+                            this.updateParticlePositions();
+                            const hintText = document.getElementById('hint-text');
+                            hintText.textContent = '🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide';
+                            console.log('⌨️ Keyboard: Returned to GALAXY mode');
+                        }
+                    }
+                });
+                
+                // Mouse drag - left button drag to rotate scene
+                let mouseDownPos = { x: 0, y: 0 };
+                let hasMoved = false;
+                
+                window.addEventListener('mousedown', (e) => {
+                    if (e.button === 0) { // Left button
+                        STATE.isDragging = true;
+                        STATE.dragStart.x = e.clientX;
+                        STATE.dragStart.y = e.clientY;
+                        mouseDownPos.x = e.clientX;
+                        mouseDownPos.y = e.clientY;
+                        hasMoved = false;
+                        document.body.style.cursor = 'grabbing';
+                    }
+                });
+                
+                window.addEventListener('mouseup', (e) => {
+                    if (e.button === 0) {
+                        STATE.isDragging = false;
+                        document.body.style.cursor = 'default';
+                    }
+                });
+                
+                window.addEventListener('mousemove', (e) => {
+                    if (STATE.isDragging) {
+                        // Check if mouse has moved significantly
+                        const moveDistance = Math.abs(e.clientX - mouseDownPos.x) + Math.abs(e.clientY - mouseDownPos.y);
+                        if (moveDistance > 5) {
+                            hasMoved = true;
+                        }
+                        
+                        // Drag mode: calculate rotation based on mouse movement
+                        const deltaX = e.clientX - STATE.dragStart.x;
+                        const deltaY = e.clientY - STATE.dragStart.y;
+                        
+                        // Convert pixel movement to rotation (larger factor for more sensitive control)
+                        // Positive deltaX (right) = positive rotation Y (clockwise from top)
+                        // Mouse left (-deltaX) = scene left (negative rotation Y)
+                        STATE.targetDragRotation.y += deltaX * 0.005;
+                        STATE.targetDragRotation.x -= deltaY * 0.005;
+                        
+                        STATE.dragStart.x = e.clientX;
+                        STATE.dragStart.y = e.clientY;
+                    } else {
+                        // Normal mode: track mouse position for hover control
+                        STATE.mousePosition.x = e.clientX / window.innerWidth;
+                        STATE.mousePosition.y = e.clientY / window.innerHeight;
+                    }
+                });
+                
+                // Mouse wheel - zoom and photo navigation
+                window.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    
+                    if (STATE.mode === 'FOCUS') {
+                        // In FOCUS mode: scroll to cycle through photos
+                        if (e.deltaY > 0) {
+                            // Scroll down: next photo
+                            STATE.focusedPhoto = null;
+                            this.updateParticlePositions();
+                            console.log('🖱️ Wheel: Next photo');
+                        } else if (e.deltaY < 0) {
+                            // Scroll up: previous photo (cycle backwards)
+                            STATE.focusIndex = (STATE.focusIndex - 2 + this.particles.filter(p => p.type === 'PHOTO').length) % this.particles.filter(p => p.type === 'PHOTO').length;
+                            STATE.focusedPhoto = null;
+                            this.updateParticlePositions();
+                            console.log('🖱️ Wheel: Previous photo');
+                        }
+                    } else if (STATE.mode === 'GALAXY' || STATE.mode === 'HEART') {
+                        // In GALAXY/HEART mode: zoom camera
+                        const zoomSpeed = e.deltaY * 0.1;
+                        STATE.targetCameraZoom = Math.max(60, Math.min(200, STATE.targetCameraZoom + zoomSpeed));
+                        console.log(`🖱️ Wheel: Zoom to ${STATE.targetCameraZoom.toFixed(0)}`);
+                    }
+                }, { passive: false });
+                
+                // Mouse click - switch to FOCUS mode (cycle through photos)
+                window.addEventListener('click', (e) => {
+                    // Ignore if it was a drag operation
+                    if (hasMoved) {
+                        return;
+                    }
+                    
+                    // Ignore clicks on UI elements
+                    if (e.target.closest('#upload-wrapper') || e.target.closest('#webcam-container') || e.target.closest('#hint-text')) {
+                        return;
+                    }
+                    
+                    const hintText = document.getElementById('hint-text');
+                    
+                    if (STATE.mode === 'GALAXY' || STATE.mode === 'HEART') {
+                        // Enter FOCUS mode
+                        STATE.mode = 'FOCUS';
+                        STATE.isTransitioning = false;
+                        this.updateParticlePositions();
+                        hintText.textContent = '🖱️ Drag to rotate | Click for next | 🎡 Scroll photos | Esc to return';
+                        console.log('🖱️ Mouse click: Switched to FOCUS mode');
+                    } else if (STATE.mode === 'FOCUS') {
+                        // Cycle to next photo
+                        STATE.focusedPhoto = null; // Reset to trigger next photo
+                        this.updateParticlePositions();
+                        console.log('🖱️ Mouse click: Next photo');
+                    }
+                });
+            }
+            
+            async initMediaPipe() {
+                try {
+                    const vision = await FilesetResolver.forVisionTasks(
+                        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                    );
+                    
+                    this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                        baseOptions: {
+                            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                            delegate: "GPU"
+                        },
+                        runningMode: "VIDEO",
+                        numHands: 1
+                    });
+                    
+                    // Start webcam
+                    const video = document.getElementById('webcam');
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: 320, height: 240 }
+                    });
+                    video.srcObject = stream;
+                    this.webcamRunning = true;
+                    
+                } catch (error) {
+                    console.warn('MediaPipe initialization failed:', error);
+                }
+            }
+            
+            processGestures(landmarks) {
+                if (!STATE.gestureEnabled) return; // Skip if gesture recognition is disabled
+                if (!landmarks || landmarks.length === 0) return;
+                
+                const hand = landmarks[0];
+                
+                // Key points
+                const thumb = hand[4];
+                const index = hand[8];
+                const wrist = hand[0];
+                const middle = hand[12];
+                const ring = hand[16];
+                const pinky = hand[20];
+                const palm = hand[9];
+                
+                // Update hand center
+                STATE.handCenter.x = palm.x;
+                STATE.handCenter.y = palm.y;
+                
+                // Calculate distances
+                const pinchDist = Math.hypot(thumb.x - index.x, thumb.y - index.y, thumb.z - index.z);
+                
+                const fingerTips = [index, middle, ring, pinky];
+                const avgFingerDist = fingerTips.reduce((sum, tip) => {
+                    return sum + Math.hypot(tip.x - wrist.x, tip.y - wrist.y, tip.z - wrist.z);
+                }, 0) / fingerTips.length;
+                
+                // Gesture recognition (only GALAXY and FOCUS)
+                let newMode = STATE.mode;
+                
+                if (pinchDist < 0.05) {
+                    // Pinch -> FOCUS
+                    newMode = 'FOCUS';
+                } else if (avgFingerDist > 0.4) {
+                    // Open hand -> GALAXY
+                    newMode = 'GALAXY';
+                }
+                
+                // Update mode if changed
+                if (newMode !== STATE.mode && newMode !== 'HEART') {
+                    // Stop transition if gesture is detected
+                    if (STATE.isTransitioning) {
+                        STATE.isTransitioning = false;
+                        STATE.transitionProgress = 1.0;
+                    }
+                    STATE.mode = newMode;
+                    this.updateParticlePositions();
+                }
+            }
+            
+            hideLoader() {
+                const loader = document.getElementById('loader');
+                setTimeout(() => {
+                    loader.classList.add('hidden');
+                }, 1500);
+            }
+            
+            animate() {
+                requestAnimationFrame(() => this.animate());
+                
+                const time = performance.now();
+                
+                // Initial transition from HEART to GALAXY
+                if (STATE.isTransitioning) {
+                    STATE.transitionProgress += 0.006; // Transition over ~3 seconds
+                    
+                    if (STATE.transitionProgress >= 1.0) {
+                        STATE.transitionProgress = 1.0;
+                        STATE.isTransitioning = false;
+                        STATE.mode = 'GALAXY';
+                        this.updateParticlePositions();
+                    } else {
+                        // Smooth position transition - all particles are already hearts
+                        const progress = STATE.transitionProgress;
+                        
+                        this.particles.forEach((p, i) => {
+                            if (p.type !== 'PHOTO') {
+                                // Interpolate positions from heart shape to galaxy scatter
+                                const t = i / this.particles.length;
+                                p.setHeartPosition(t);
+                                const heartTarget = p.target.clone();
+                                
+                                p.setGalaxyPosition();
+                                const galaxyTarget = p.target.clone();
+                                
+                                // Lerp between heart and galaxy positions
+                                p.target.lerpVectors(heartTarget, galaxyTarget, progress);
+                                
+                                // Gradually apply size change during transition
+                                const depth = galaxyTarget.z;
+                                const normalizedDepth = (depth + 80) / 160;
+                                const scale = 0.3 + (7.5 - 0.3) * normalizedDepth; // Updated to match new range
+                                const targetScale = 1 + (scale - 1) * progress;
+                                p.mesh.scale.setScalar(targetScale);
+                            }
+                        });
+                    }
+                }
+                
+                // MediaPipe hand detection
+                if (this.handLandmarker && this.webcamRunning) {
+                    const video = document.getElementById('webcam');
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        const results = this.handLandmarker.detectForVideo(video, time);
+                        if (results.landmarks) {
+                            this.processGestures(results.landmarks);
+                        }
+                    }
+                }
+                
+                // Update particle positions
+                this.particles.forEach(p => p.update(0.05));
+                
+                // Smooth camera zoom (from mouse wheel)
+                STATE.cameraZoom += (STATE.targetCameraZoom - STATE.cameraZoom) * 0.1;
+                this.camera.position.z = STATE.cameraZoom;
+                
+                // Control priority: Drag > Hand > Mouse hover > Auto drift
+                if (STATE.isDragging) {
+                    // Drag mode: smooth interpolation to target rotation
+                    STATE.dragRotation.x += (STATE.targetDragRotation.x - STATE.dragRotation.x) * 0.2;
+                    STATE.dragRotation.y += (STATE.targetDragRotation.y - STATE.dragRotation.y) * 0.2;
+                    
+                    this.mainGroup.rotation.x = STATE.dragRotation.x;
+                    this.mainGroup.rotation.y = STATE.dragRotation.y;
+                } else if (STATE.handCenter.x && STATE.handCenter.y) {
+                    // Hand control: mirrored video with direct following
+                    // Mirror both axes to match mirrored video display
+                    const targetRotY = -(STATE.handCenter.x - 0.5) * Math.PI * 1.5; // ±270 degrees (mirrored)
+                    const targetRotX = -(STATE.handCenter.y - 0.5) * Math.PI * 1.0; // ±180 degrees (inverted for natural feel)
+                    
+                    // Direct following (higher lerp factor)
+                    this.mainGroup.rotation.y += (targetRotY - this.mainGroup.rotation.y) * 0.15;
+                    this.mainGroup.rotation.x += (targetRotX - this.mainGroup.rotation.x) * 0.15;
+                    
+                    // Sync drag rotation with current rotation for smooth transition
+                    STATE.dragRotation.x = this.mainGroup.rotation.x;
+                    STATE.dragRotation.y = this.mainGroup.rotation.y;
+                    STATE.targetDragRotation.x = this.mainGroup.rotation.x;
+                    STATE.targetDragRotation.y = this.mainGroup.rotation.y;
+                } else if (STATE.mousePosition.x !== 0.5 || STATE.mousePosition.y !== 0.5) {
+                    // Mouse hover control: similar to hand but not mirrored
+                    const targetRotY = (STATE.mousePosition.x - 0.5) * Math.PI * 1.2; // ±216 degrees
+                    const targetRotX = -(STATE.mousePosition.y - 0.5) * Math.PI * 0.8; // ±144 degrees
+                    
+                    // Smooth following
+                    this.mainGroup.rotation.y += (targetRotY - this.mainGroup.rotation.y) * 0.08;
+                    this.mainGroup.rotation.x += (targetRotX - this.mainGroup.rotation.x) * 0.08;
+                    
+                    // Sync drag rotation
+                    STATE.dragRotation.x = this.mainGroup.rotation.x;
+                    STATE.dragRotation.y = this.mainGroup.rotation.y;
+                    STATE.targetDragRotation.x = this.mainGroup.rotation.x;
+                    STATE.targetDragRotation.y = this.mainGroup.rotation.y;
+                } else {
+                    // Auto drift when no control - smooth ambient movement
+                    const time = performance.now() * 0.0001;
+                    const targetRotY = Math.sin(time * 0.5) * 0.3;
+                    const targetRotX = Math.cos(time * 0.3) * 0.2;
+                    
+                    this.mainGroup.rotation.y += (targetRotY - this.mainGroup.rotation.y) * 0.01;
+                    this.mainGroup.rotation.x += (targetRotX - this.mainGroup.rotation.x) * 0.01;
+                    
+                    // Sync drag rotation
+                    STATE.dragRotation.x = this.mainGroup.rotation.x;
+                    STATE.dragRotation.y = this.mainGroup.rotation.y;
+                    STATE.targetDragRotation.x = this.mainGroup.rotation.x;
+                    STATE.targetDragRotation.y = this.mainGroup.rotation.y;
+                }
+                
+                // Render with bloom
+                this.composer.render();
+            }
+        }
+        
+        // ==================== Start Application ====================
+        window.addEventListener('DOMContentLoaded', () => {
+            new EternalHeartApp();
+        });
+    </script>
+</body>
+</html>
