@@ -1426,8 +1426,25 @@
                 
                 // Photo upload
                 const uploadInput = document.getElementById('photo-upload');
+                const uploadWrapper = document.getElementById('upload-wrapper');
+                
+                // 移动端：直接在上传按钮上添加touchend事件
+                if (STATE.isMobile && uploadWrapper) {
+                    uploadWrapper.addEventListener('touchend', (e) => {
+                        e.stopPropagation();
+                        console.log('📸 Upload wrapper touched');
+                        
+                        // 触发文件选择
+                        if (uploadInput) {
+                            console.log('📸 Opening file picker...');
+                            uploadInput.click();
+                        }
+                    }, { passive: false });
+                }
+                
                 uploadInput.addEventListener('change', (e) => {
                     const files = e.target.files;
+                    console.log('📸 Files selected:', files.length);
                     if (files.length > 0) {
                         Array.from(files).forEach(f => {
                             const reader = new FileReader();
@@ -1436,6 +1453,7 @@
                                     t.colorSpace = THREE.SRGBColorSpace;
                                     this.addPhotoToScene(t);
                                     this.updateParticlePositions();
+                                    console.log('📸 Photo added to scene');
                                 });
                             };
                             reader.readAsDataURL(f);
@@ -1700,12 +1718,18 @@
                                 return;
                             }
                             
-                            // 如果点击了上传按钮，允许事件继续（不阻止）
+                            // 如果点击了上传按钮，手动触发input的点击
                             if (target && target.closest('#upload-wrapper')) {
                                 STATE.isDragging = false;
                                 touches = [];
-                                // 不return，让原生的文件选择器弹出
                                 console.log('📸 Upload button tapped');
+                                
+                                // 手动触发文件输入框的点击
+                                const uploadInput = document.getElementById('photo-upload');
+                                if (uploadInput) {
+                                    console.log('📸 Triggering file input click');
+                                    uploadInput.click();
+                                }
                                 return;
                             }
                             
