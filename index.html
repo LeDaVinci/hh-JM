@@ -1102,7 +1102,7 @@
                 const photoFiles = [
                     'image/first.jpg',
                     'image/微信图片_20251214145844_5_72.jpg',
-                    'image/微信图片_20251214145844_5_72(1).jpg',
+                    
                     'image/微信图片_20251214150104_6_72.jpg',
                     'image/微信图片_20251214150107_7_72.jpg',
                     'image/微信图片_20251214150109_8_72.jpg',
@@ -1120,10 +1120,11 @@
                     'image/微信图片_20251214150736_20_72.jpg',
                     'image/微信图片_20251214150738_21_72.jpg',
                     'image/微信图片_20251214150739_22_72.jpg',
-                    'image/微信图片_20251214150739_22_72(1).jpg',
+                    
                     'image/微信图片_20251214150740_23_72.jpg',
                     'image/微信图片_20251214150741_24_72.jpg',
                     'image/微信图片_20251214150742_25_72.jpg',
+                    'image/微信图片_20251214145844_5_72(1).jpg',
                     'image/微信图片_20251214150745_26_72.jpg',
                     'image/微信图片_20251214150748_27_72.jpg',
                     'image/微信图片_20251214150748_27_72(1).jpg',
@@ -1131,20 +1132,31 @@
                     'image/微信图片_20251214150750_28_72.jpg',
                     'image/微信图片_20251214150754_29_72.jpg',
                     'image/微信图片_20251214150755_30_72.jpg',
+
+                    'image/微信图片_20251214150739_22_72(1).jpg',
                     
                     'image/微信图片_20251214150758_31_72.jpg',
                     'image/微信图片_20251214150801_32_72.jpg',
                     'image/微信图片_20251214150801_32_72(1).jpg'
                 ];
                 
-                console.log(`✅ Loading ${photoFiles.length} images from static list`);
+                // 移动端随机选择15张照片，PC端全量加载
+                let photosToLoad = photoFiles;
+                if (STATE.isMobile) {
+                    // 随机打乱并选择前15张
+                    const shuffled = [...photoFiles].sort(() => Math.random() - 0.5);
+                    photosToLoad = shuffled.slice(0, 15);
+                    console.log(`📱 Mobile: Loading ${photosToLoad.length} random photos (out of ${photoFiles.length})`);
+                } else {
+                    console.log(`🖥️ Desktop: Loading all ${photoFiles.length} photos`);
+                }
                 
-                // Load all photos
+                // Load photos
                 const loader = new THREE.TextureLoader();
                 let loadedCount = 0;
                 let successCount = 0;
                 
-                photoFiles.forEach(path => {
+                photosToLoad.forEach(path => {
                     loader.load(
                         path,
                         (texture) => {
@@ -1153,8 +1165,8 @@
                             loadedCount++;
                             successCount++;
                             // Update positions after all photos loaded
-                            if (loadedCount === photoFiles.length) {
-                                console.log(`Successfully loaded ${successCount}/${photoFiles.length} photos`);
+                            if (loadedCount === photosToLoad.length) {
+                                console.log(`✅ Successfully loaded ${successCount}/${photosToLoad.length} photos`);
                                 this.updateParticlePositions();
                             }
                         },
@@ -1163,7 +1175,7 @@
                             console.warn(`Failed to load photo: ${path}`);
                             loadedCount++;
                             // If all failed, add default LOVE photo
-                            if (loadedCount === photoFiles.length && successCount === 0) {
+                            if (loadedCount === photosToLoad.length && successCount === 0) {
                                 this.addDefaultLovePhoto();
                             }
                         }
@@ -1203,8 +1215,8 @@
                 const image = texture.image;
                 const aspectRatio = image ? image.width / image.height : 1;
                 
-                // Base size for photos (larger for bigger heart)
-                const baseSize = 3.5;
+                // Base size for photos - 移动端使用更小的尺寸以提升性能
+                const baseSize = STATE.isMobile ? 2.5 : 3.5;
                 let width, height;
                 
                 if (aspectRatio > 1) {
@@ -1295,8 +1307,10 @@
                     
                     if (STATE.focusedPhoto) {
                         // Main focused photo - prominent in center-front
+                        // 移动端使用更小的缩放比例
+                        const focusScale = STATE.isMobile ? 4 : 6;
                         STATE.focusedPhoto.target.set(0, 0, 90);
-                        STATE.focusedPhoto.mesh.scale.setScalar(6);
+                        STATE.focusedPhoto.mesh.scale.setScalar(focusScale);
                         
                         // Scatter particles naturally in full 3D space around photos
                         others.forEach((p, idx) => {
@@ -1339,12 +1353,14 @@
                                 depth
                             );
                             
-                            // Varied sizes (2 to 4)
-                            const scale = 2 + (i % 3) * 0.6 + Math.random() * 0.4;
+                            // Varied sizes - 移动端使用更小的尺寸
+                            const baseScale = STATE.isMobile ? 1.5 : 2;
+                            const scale = baseScale + (i % 3) * 0.6 + Math.random() * 0.4;
                             p.mesh.scale.setScalar(scale);
                         }
                         
                         // Rest scattered to far periphery
+                        const farPhotoScale = STATE.isMobile ? 1.2 : 1.8;
                         for (let i = displayCount; i < otherPhotos.length; i++) {
                             const angle = Math.random() * Math.PI * 2;
                             const radius = 70 + Math.random() * 30;
@@ -1353,7 +1369,7 @@
                                 Math.sin(angle) * radius * 0.4,
                                 10 + Math.random() * 30
                             );
-                            otherPhotos[i].mesh.scale.setScalar(1.8);
+                            otherPhotos[i].mesh.scale.setScalar(farPhotoScale);
                         }
                     }
                 }
