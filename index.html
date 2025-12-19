@@ -592,7 +592,8 @@
     <div id="hint-text"></div>
     
     <!-- Native HTML5 Audio (for mobile compatibility) -->
-    <audio id="native-audio" preload="auto" loop style="display: none;">
+    <!-- 不使用loop属性，改为手动循环以提高Android兼容性 -->
+    <audio id="native-audio" preload="auto" style="display: none;">
         <source src="audio/xiaoyu.mp3" type="audio/mpeg">
     </audio>
     
@@ -1434,9 +1435,19 @@
                 
                 // Music control button
                 const musicControl = document.getElementById('music-control');
-                musicControl.addEventListener('click', () => {
+                musicControl.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 防止事件冒泡
+                    
+                    // 移动端确保音频已解锁
+                    if (STATE.isMobile && this.nativeAudio) {
+                        // 重新加载确保可以播放
+                        if (this.nativeAudio.paused && this.nativeAudio.readyState === 0) {
+                            this.nativeAudio.load();
+                        }
+                    }
+                    
                     this.toggleBackgroundMusic();
-                    musicControl.classList.toggle('playing');
+                    console.log('🎵 Music button clicked');
                 });
                 
                 // Keyboard - Hide UI and mode control (桌面端)
@@ -1661,11 +1672,20 @@
                             // 单击操作
                             const touch = touches[0];
                             
-                            // 检查是否点击了UI元素
+                            // 检查是否点击了UI元素（但上传按钮需要触发原生事件）
                             const target = document.elementFromPoint(touch.clientX, touch.clientY);
-                            if (target && (target.closest('#upload-wrapper') || target.closest('#music-control') || target.closest('#hint-text'))) {
+                            if (target && (target.closest('#music-control') || target.closest('#hint-text'))) {
                                 STATE.isDragging = false;
                                 touches = [];
+                                return;
+                            }
+                            
+                            // 如果点击了上传按钮，允许事件继续（不阻止）
+                            if (target && target.closest('#upload-wrapper')) {
+                                STATE.isDragging = false;
+                                touches = [];
+                                // 不return，让原生的文件选择器弹出
+                                console.log('📸 Upload button tapped');
                                 return;
                             }
                             
@@ -1734,8 +1754,13 @@
                         });
                         
                         this.nativeAudio.addEventListener('ended', () => {
-                            console.log('🎵 Native audio finished');
-                            this.isPlaying = false;
+                            console.log('🎵 Native audio finished, restarting...');
+                            // 手动循环播放（某些Android设备loop属性不可靠）
+                            this.nativeAudio.currentTime = 0;
+                            this.nativeAudio.play().catch(err => {
+                                console.warn('⚠️ Auto-replay failed:', err.message);
+                                this.isPlaying = false;
+                            });
                         });
                         
                         this.nativeAudio.addEventListener('error', (e) => {
@@ -1783,33 +1808,41 @@
                 });
             }
             
-            // iOS音频解锁（移动端需要）
+            // iOS/Android音频解锁（移动端需要）
             unlockAudioContext() {
                 if (!this.nativeAudio) return;
                 
+                let unlocked = false;
+                
                 const unlock = () => {
+                    if (unlocked) return;
+                    
                     // 尝试播放并立即暂停来解锁音频
+                    this.nativeAudio.load(); // 重新加载音频
                     const playPromise = this.nativeAudio.play();
+                    
                     if (playPromise !== undefined) {
                         playPromise.then(() => {
                             this.nativeAudio.pause();
                             this.nativeAudio.currentTime = 0;
-                            console.log('🔓 Audio context unlocked for iOS');
+                            unlocked = true;
+                            console.log('🔓 Audio context unlocked for mobile');
                         }).catch(error => {
-                            console.log('⏳ Waiting for user interaction to unlock audio...');
+                            console.log('⏳ Audio unlock attempt:', error.name);
                         });
                     }
-                    
-                    // 移除事件监听
-                    document.removeEventListener('touchstart', unlock);
-                    document.removeEventListener('touchend', unlock);
-                    document.removeEventListener('click', unlock);
                 };
                 
-                // 在用户第一次交互时解锁
+                // 在用户第一次交互时解锁（多个事件确保兼容性）
                 document.addEventListener('touchstart', unlock, { once: true });
                 document.addEventListener('touchend', unlock, { once: true });
                 document.addEventListener('click', unlock, { once: true });
+                
+                // 音乐按钮点击时也尝试解锁
+                const musicControl = document.getElementById('music-control');
+                if (musicControl) {
+                    musicControl.addEventListener('click', unlock, { once: true });
+                }
             }
             
             // 在用户第一次交互时尝试播放音乐
@@ -1831,6 +1864,25 @@
                 
                 // 移动端使用原生Audio
                 if (this.nativeAudio && (STATE.isMobile || isTouchDevice)) {
+                    // Android Chrome兼容性：确保音频已加载
+                    if (this.nativeAudio.readyState < 2) {
+                        console.log('⏳ Loading audio...');
+                        this.nativeAudio.load();
+                        // 等待加载完成后播放
+                        this.nativeAudio.addEventListener('canplay', () => {
+                            this.nativeAudio.play().then(() => {
+                                console.log('▶️ Native audio playing (after load)');
+                                this.isPlaying = true;
+                                if (musicControl) {
+                                    musicControl.classList.add('playing');
+                                }
+                            }).catch(error => {
+                                console.error('❌ Failed to play after load:', error.message);
+                            });
+                        }, { once: true });
+                        return;
+                    }
+                    
                     const playPromise = this.nativeAudio.play();
                     
                     if (playPromise !== undefined) {
@@ -1842,9 +1894,19 @@
                             }
                         }).catch(error => {
                             console.error('❌ Failed to play native audio:', error.message);
-                            // iOS可能需要用户手动点击
-                            if (error.name === 'NotAllowedError') {
+                            console.log('🔧 Error details:', {
+                                name: error.name,
+                                readyState: this.nativeAudio.readyState,
+                                paused: this.nativeAudio.paused,
+                                src: this.nativeAudio.src
+                            });
+                            
+                            // 尝试重新加载并播放
+                            if (error.name === 'NotAllowedError' || error.name === 'NotSupportedError') {
                                 console.log('💡 Please tap the music button to play');
+                            } else {
+                                console.log('🔄 Retrying with reload...');
+                                this.nativeAudio.load();
                             }
                         });
                     }
