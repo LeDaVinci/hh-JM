@@ -2,7 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Eternal Heart - 3D Memory Gallery</title>
     
     <!-- Google Fonts -->
@@ -27,6 +29,10 @@
             overflow: hidden;
             width: 100vw;
             height: 100vh;
+            position: fixed;
+            touch-action: none; /* 禁止默认的触摸行为 */
+            -webkit-user-select: none;
+            user-select: none;
         }
         
         #canvas-container {
@@ -347,6 +353,76 @@
             50% { opacity: 1; }
         }
         
+        /* Mobile Adaptations */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 36px;
+                top: 20px;
+            }
+            
+            .upload-wrapper {
+                bottom: 40px;
+            }
+            
+            .upload-btn {
+                padding: 14px 30px;
+                font-size: 12px;
+            }
+            
+            .hint-text {
+                font-size: 9px;
+                text-align: center;
+                padding: 0 10px;
+            }
+            
+            #music-control {
+                width: 44px;
+                height: 44px;
+                bottom: 15px;
+                left: 15px;
+            }
+            
+            #music-control svg {
+                width: 20px;
+                height: 20px;
+            }
+            
+            #hint-text {
+                font-size: 9px;
+                bottom: 15px;
+                padding: 6px 12px;
+            }
+            
+            /* 移动端隐藏摄像头容器 */
+            #webcam-container {
+                display: none !important;
+            }
+        }
+        
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            .upload-btn:hover {
+                /* 移除hover效果，避免触摸时的闪烁 */
+                background: rgba(255, 0, 85, 0.1);
+                transform: none;
+            }
+            
+            .upload-btn:active {
+                background: rgba(255, 0, 85, 0.3);
+                transform: scale(0.95);
+            }
+            
+            #music-control:hover {
+                background: rgba(255, 0, 85, 0.1);
+                transform: none;
+            }
+            
+            #music-control:active {
+                background: rgba(255, 0, 85, 0.3);
+                transform: scale(0.9);
+            }
+        }
+        
         /* Music control button */
         #music-control {
             position: fixed;
@@ -412,6 +488,61 @@
             }
         }
         
+        /* Mobile Adaptations */
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 36px;
+                top: 20px;
+            }
+            
+            .upload-wrapper {
+                bottom: 60px;
+            }
+            
+            .upload-btn {
+                padding: 14px 35px;
+                font-size: 12px;
+            }
+            
+            .hint-text {
+                font-size: 10px;
+                padding: 6px 12px;
+            }
+            
+            #webcam-container {
+                display: none !important; /* 移动端隐藏摄像头 */
+            }
+            
+            #hint-text {
+                bottom: 20px;
+                font-size: 9px;
+                padding: 6px 12px;
+            }
+            
+            #music-control {
+                width: 45px;
+                height: 45px;
+                bottom: 15px;
+                left: 15px;
+            }
+            
+            #music-control svg {
+                width: 20px;
+                height: 20px;
+            }
+        }
+        
+        /* Touch feedback */
+        @media (hover: none) and (pointer: coarse) {
+            .upload-btn:active {
+                transform: scale(0.95);
+            }
+            
+            #music-control:active {
+                transform: scale(0.9);
+            }
+        }
+        
     </style>
 </head>
 <body>
@@ -435,9 +566,9 @@
     <div class="upload-wrapper" id="upload-wrapper">
         <label class="upload-btn">
             ADD MOMENT
-            <input type="file" id="photo-upload" accept="image/*" multiple>
+            <input type="file" id="photo-upload" accept="image/*" capture="environment" multiple>
         </label>
-        <div class="hint-text">Open hand for hearts ✋ | Pinch to focus 👌 | Press 'H' to hide UI | Press 'M' for music</div>
+        <div class="hint-text" id="upload-hint">Open hand for hearts ✋ | Pinch to focus 👌 | Press 'H' to hide UI | Press 'M' for music</div>
     </div>
     
     <!-- Canvas Container -->
@@ -458,7 +589,7 @@
     </div>
     
     <!-- Hint text -->
-    <div id="hint-text">🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide | M for music 🎵</div>
+    <div id="hint-text"></div>
     
     <!-- Music Control Button -->
     <div id="music-control" title="点击播放音乐 🎵 (快捷键: M)">
@@ -489,6 +620,16 @@
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
         import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
         
+        // ==================== 移动端检测 ====================
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                         (window.innerWidth <= 768) ||
+                         ('ontouchstart' in window);
+        
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        
+        console.log('📱 设备类型:', isMobile ? '移动端' : 'PC端');
+        console.log('👆 触摸支持:', isTouchDevice ? '是' : '否');
+        
         // ==================== Global State ====================
         const STATE = {
             mode: 'HEART', // 'HEART', 'GALAXY', 'FOCUS'
@@ -505,8 +646,22 @@
             dragStart: { x: 0, y: 0 }, // Drag start position
             dragRotation: { x: 0, y: 0 }, // Accumulated rotation from drag
             targetDragRotation: { x: 0, y: 0 }, // Target rotation for smooth interpolation
-            userHasInteracted: false // Track if user has interacted with page
+            userHasInteracted: false, // Track if user has interacted with page
+            isMobile: false, // Mobile device detection
+            touchStartDistance: 0, // For pinch zoom
+            lastTouchTime: 0 // For double tap detection
         };
+        
+        // ==================== Mobile Detection ====================
+        function detectMobile() {
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase());
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            const isSmallScreen = window.innerWidth <= 768;
+            return isMobileUA || (isTouchDevice && isSmallScreen);
+        }
+        
+        STATE.isMobile = detectMobile();
         
         // ==================== Particle Class ====================
         class Particle {
@@ -772,10 +927,13 @@
                 this.composer.addPass(renderPass);
                 
                 // Bloom effect for glowing photons
+                // 移动端使用更低的强度以提升性能
+                const bloomStrength = STATE.isMobile ? 0.5 : 0.8;
+                const bloomRadius = STATE.isMobile ? 0.3 : 0.5;
                 const bloomPass = new UnrealBloomPass(
                     new THREE.Vector2(window.innerWidth, window.innerHeight),
-                    0.8,  // strength (reduced for better performance)
-                    0.5,  // radius
+                    bloomStrength,  // strength
+                    bloomRadius,  // radius
                     0.8   // threshold (photos won't bloom, only emissive particles)
                 );
                 this.composer.addPass(bloomPass);
@@ -845,7 +1003,8 @@
             
             createParticles() {
                 // Filler particles - mix of hearts and fragments
-                const fillerCount = 5000; // Reduced from 10000 for better performance
+                // 移动端减少粒子数量以提升性能
+                const fillerCount = STATE.isMobile ? 2000 : 5000;
                 
                 const miniHeartGeo = this.createMiniHeartGeometry();
                 const fragmentGeo = this.createHeartFragmentGeometry();
@@ -902,7 +1061,8 @@
                 }
                 
                 // Dust particles - tiny glowing hearts (mix with fragments)
-                const dustCount = 1500; // Reduced from 3000 for better performance
+                // 移动端进一步减少
+                const dustCount = STATE.isMobile ? 500 : 1500;
                 const dustMat = new THREE.MeshBasicMaterial({
                     color: 0xffffff,
                     transparent: true,
@@ -1193,20 +1353,30 @@
             }
             
             setupEventListeners() {
-                // Gesture toggle switch
+                // 移动端检测日志
+                if (STATE.isMobile) {
+                    console.log('📱 Mobile device detected - Touch controls enabled');
+                    console.log('📱 Webcam gesture recognition disabled on mobile');
+                } else {
+                    console.log('🖥️ Desktop device detected - Mouse and gesture controls enabled');
+                }
+                
+                // Gesture toggle switch (桌面端)
                 const gestureCheckbox = document.getElementById('gesture-checkbox');
-                gestureCheckbox.addEventListener('change', (e) => {
-                    STATE.gestureEnabled = e.target.checked;
-                    const webcamContainer = document.getElementById('webcam-container');
-                    if (STATE.gestureEnabled) {
-                        webcamContainer.style.opacity = '1';
-                        console.log('✅ Gesture recognition enabled');
-                    } else {
-                        webcamContainer.style.opacity = '0.5';
-                        STATE.handCenter = { x: 0, y: 0 }; // Reset hand position
-                        console.log('❌ Gesture recognition disabled');
-                    }
-                });
+                if (!STATE.isMobile) {
+                    gestureCheckbox.addEventListener('change', (e) => {
+                        STATE.gestureEnabled = e.target.checked;
+                        const webcamContainer = document.getElementById('webcam-container');
+                        if (STATE.gestureEnabled) {
+                            webcamContainer.style.opacity = '1';
+                            console.log('✅ Gesture recognition enabled');
+                        } else {
+                            webcamContainer.style.opacity = '0.5';
+                            STATE.handCenter = { x: 0, y: 0 }; // Reset hand position
+                            console.log('❌ Gesture recognition disabled');
+                        }
+                    });
+                }
                 
                 // Window resize - 性能优化：添加防抖，避免频繁触发
                 let resizeTimeout;
@@ -1246,34 +1416,36 @@
                     musicControl.classList.toggle('playing');
                 });
                 
-                // Keyboard - Hide UI and mode control
-                document.addEventListener('keydown', (e) => {
-                    // 尝试在第一次交互时播放音乐
-                    this.tryAutoPlayOnInteraction();
-                    
-                    if (e.key.toLowerCase() === 'h') {
-                        const title = document.getElementById('title');
-                        const wrapper = document.getElementById('upload-wrapper');
-                        const hintText = document.getElementById('hint-text');
-                        title.classList.toggle('ui-hidden');
-                        wrapper.classList.toggle('ui-hidden');
-                        hintText.classList.toggle('ui-hidden');
-                    } else if (e.key.toLowerCase() === 'm') {
-                        // Toggle music with M key
-                        const musicControl = document.getElementById('music-control');
-                        this.toggleBackgroundMusic();
-                        musicControl.classList.toggle('playing');
-                    } else if (e.key === ' ' || e.key === 'Escape') {
-                        if (STATE.mode === 'FOCUS') {
-                            STATE.mode = 'GALAXY';
-                            STATE.focusedPhoto = null;
-                            this.updateParticlePositions();
+                // Keyboard - Hide UI and mode control (桌面端)
+                if (!STATE.isMobile) {
+                    document.addEventListener('keydown', (e) => {
+                        // 尝试在第一次交互时播放音乐
+                        this.tryAutoPlayOnInteraction();
+                        
+                        if (e.key.toLowerCase() === 'h') {
+                            const title = document.getElementById('title');
+                            const wrapper = document.getElementById('upload-wrapper');
                             const hintText = document.getElementById('hint-text');
-                            hintText.textContent = '🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide | M for music 🎵';
-                            console.log('⌨️ Keyboard: Returned to GALAXY mode');
+                            title.classList.toggle('ui-hidden');
+                            wrapper.classList.toggle('ui-hidden');
+                            hintText.classList.toggle('ui-hidden');
+                        } else if (e.key.toLowerCase() === 'm') {
+                            // Toggle music with M key
+                            const musicControl = document.getElementById('music-control');
+                            this.toggleBackgroundMusic();
+                            musicControl.classList.toggle('playing');
+                        } else if (e.key === ' ' || e.key === 'Escape') {
+                            if (STATE.mode === 'FOCUS') {
+                                STATE.mode = 'GALAXY';
+                                STATE.focusedPhoto = null;
+                                this.updateParticlePositions();
+                                const hintText = document.getElementById('hint-text');
+                                hintText.textContent = '🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide | M for music 🎵';
+                                console.log('⌨️ Keyboard: Returned to GALAXY mode');
+                            }
                         }
-                    }
-                });
+                    });
+                }
                 
                 // Mouse drag - left button drag to rotate scene
                 let mouseDownPos = { x: 0, y: 0 };
@@ -1328,34 +1500,39 @@
                     }
                 });
                 
-                // Mouse wheel - zoom and photo navigation
-                window.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    
-                    if (STATE.mode === 'FOCUS') {
-                        // In FOCUS mode: scroll to cycle through photos
-                        if (e.deltaY > 0) {
-                            // Scroll down: next photo
-                            STATE.focusedPhoto = null;
-                            this.updateParticlePositions();
-                            console.log('🖱️ Wheel: Next photo');
-                        } else if (e.deltaY < 0) {
-                            // Scroll up: previous photo (cycle backwards)
-                            STATE.focusIndex = (STATE.focusIndex - 2 + this.particles.filter(p => p.type === 'PHOTO').length) % this.particles.filter(p => p.type === 'PHOTO').length;
-                            STATE.focusedPhoto = null;
-                            this.updateParticlePositions();
-                            console.log('🖱️ Wheel: Previous photo');
+                // Mouse wheel - zoom and photo navigation (桌面端)
+                if (!STATE.isMobile) {
+                    window.addEventListener('wheel', (e) => {
+                        e.preventDefault();
+                        
+                        if (STATE.mode === 'FOCUS') {
+                            // In FOCUS mode: scroll to cycle through photos
+                            if (e.deltaY > 0) {
+                                // Scroll down: next photo
+                                STATE.focusedPhoto = null;
+                                this.updateParticlePositions();
+                                console.log('🖱️ Wheel: Next photo');
+                            } else if (e.deltaY < 0) {
+                                // Scroll up: previous photo (cycle backwards)
+                                STATE.focusIndex = (STATE.focusIndex - 2 + this.particles.filter(p => p.type === 'PHOTO').length) % this.particles.filter(p => p.type === 'PHOTO').length;
+                                STATE.focusedPhoto = null;
+                                this.updateParticlePositions();
+                                console.log('🖱️ Wheel: Previous photo');
+                            }
+                        } else if (STATE.mode === 'GALAXY' || STATE.mode === 'HEART') {
+                            // In GALAXY/HEART mode: zoom camera
+                            const zoomSpeed = e.deltaY * 0.1;
+                            STATE.targetCameraZoom = Math.max(60, Math.min(200, STATE.targetCameraZoom + zoomSpeed));
+                            console.log(`🖱️ Wheel: Zoom to ${STATE.targetCameraZoom.toFixed(0)}`);
                         }
-                    } else if (STATE.mode === 'GALAXY' || STATE.mode === 'HEART') {
-                        // In GALAXY/HEART mode: zoom camera
-                        const zoomSpeed = e.deltaY * 0.1;
-                        STATE.targetCameraZoom = Math.max(60, Math.min(200, STATE.targetCameraZoom + zoomSpeed));
-                        console.log(`🖱️ Wheel: Zoom to ${STATE.targetCameraZoom.toFixed(0)}`);
-                    }
-                }, { passive: false });
+                    }, { passive: false });
+                }
                 
                 // Mouse click - switch to FOCUS mode (cycle through photos)
                 window.addEventListener('click', (e) => {
+                    // 移动端不处理click事件（使用touchend代替）
+                    if (STATE.isMobile) return;
+                    
                     // 尝试在第一次交互时播放音乐
                     this.tryAutoPlayOnInteraction();
                     
@@ -1385,6 +1562,126 @@
                         console.log('🖱️ Mouse click: Next photo');
                     }
                 });
+                
+                // ==================== Touch Events for Mobile ====================
+                if (STATE.isMobile) {
+                    let touchStartPos = { x: 0, y: 0 };
+                    let touchHasMoved = false;
+                    let touches = [];
+                    
+                    // Touch start
+                    window.addEventListener('touchstart', (e) => {
+                        // 尝试在第一次交互时播放音乐
+                        this.tryAutoPlayOnInteraction();
+                        
+                        touches = Array.from(e.touches);
+                        
+                        if (touches.length === 1) {
+                            // Single touch - rotation
+                            STATE.isDragging = true;
+                            touchStartPos.x = touches[0].clientX;
+                            touchStartPos.y = touches[0].clientY;
+                            STATE.dragStart.x = touches[0].clientX;
+                            STATE.dragStart.y = touches[0].clientY;
+                            touchHasMoved = false;
+                        } else if (touches.length === 2) {
+                            // Two finger - pinch zoom
+                            STATE.isDragging = false;
+                            const dx = touches[0].clientX - touches[1].clientX;
+                            const dy = touches[0].clientY - touches[1].clientY;
+                            STATE.touchStartDistance = Math.sqrt(dx * dx + dy * dy);
+                        }
+                        
+                        e.preventDefault();
+                    }, { passive: false });
+                    
+                    // Touch move
+                    window.addEventListener('touchmove', (e) => {
+                        touches = Array.from(e.touches);
+                        
+                        if (touches.length === 1 && STATE.isDragging) {
+                            // Single touch - rotation
+                            const moveDistance = Math.abs(touches[0].clientX - touchStartPos.x) + 
+                                               Math.abs(touches[0].clientY - touchStartPos.y);
+                            if (moveDistance > 5) {
+                                touchHasMoved = true;
+                            }
+                            
+                            const deltaX = touches[0].clientX - STATE.dragStart.x;
+                            const deltaY = touches[0].clientY - STATE.dragStart.y;
+                            
+                            STATE.targetDragRotation.y += deltaX * 0.008; // 移动端稍微灵敏一点
+                            STATE.targetDragRotation.x -= deltaY * 0.008;
+                            
+                            STATE.dragStart.x = touches[0].clientX;
+                            STATE.dragStart.y = touches[0].clientY;
+                        } else if (touches.length === 2) {
+                            // Two finger - pinch zoom
+                            const dx = touches[0].clientX - touches[1].clientX;
+                            const dy = touches[0].clientY - touches[1].clientY;
+                            const currentDistance = Math.sqrt(dx * dx + dy * dy);
+                            
+                            if (STATE.touchStartDistance > 0) {
+                                const scale = currentDistance / STATE.touchStartDistance;
+                                const zoomDelta = (1 - scale) * 50; // 缩放灵敏度
+                                STATE.targetCameraZoom = Math.max(60, Math.min(200, STATE.targetCameraZoom + zoomDelta));
+                                STATE.touchStartDistance = currentDistance;
+                            }
+                        }
+                        
+                        e.preventDefault();
+                    }, { passive: false });
+                    
+                    // Touch end
+                    window.addEventListener('touchend', (e) => {
+                        if (touches.length === 1 && !touchHasMoved) {
+                            // 单击操作
+                            const touch = touches[0];
+                            
+                            // 检查是否点击了UI元素
+                            const target = document.elementFromPoint(touch.clientX, touch.clientY);
+                            if (target && (target.closest('#upload-wrapper') || target.closest('#music-control') || target.closest('#hint-text'))) {
+                                STATE.isDragging = false;
+                                touches = [];
+                                return;
+                            }
+                            
+                            const hintText = document.getElementById('hint-text');
+                            const now = Date.now();
+                            
+                            // 双击检测（300ms内）
+                            if (now - STATE.lastTouchTime < 300) {
+                                // 双击：返回GALAXY模式
+                                if (STATE.mode === 'FOCUS') {
+                                    STATE.mode = 'GALAXY';
+                                    STATE.focusedPhoto = null;
+                                    this.updateParticlePositions();
+                                    hintText.textContent = '👆 Tap to view | 🤏 Pinch to zoom | 📱 Swipe to rotate';
+                                    console.log('👆 Double tap: Returned to GALAXY mode');
+                                }
+                            } else {
+                                // 单击：切换模式或下一张照片
+                                if (STATE.mode === 'GALAXY' || STATE.mode === 'HEART') {
+                                    STATE.mode = 'FOCUS';
+                                    STATE.isTransitioning = false;
+                                    this.updateParticlePositions();
+                                    hintText.textContent = '👆 Tap for next | 🤏 Pinch zoom | Double tap to return';
+                                    console.log('👆 Tap: Switched to FOCUS mode');
+                                } else if (STATE.mode === 'FOCUS') {
+                                    STATE.focusedPhoto = null;
+                                    this.updateParticlePositions();
+                                    console.log('👆 Tap: Next photo');
+                                }
+                            }
+                            
+                            STATE.lastTouchTime = now;
+                        }
+                        
+                        STATE.isDragging = false;
+                        STATE.touchStartDistance = 0;
+                        touches = [];
+                    });
+                }
             }
             
             initSoundManager() {
@@ -1486,6 +1783,12 @@
             }
             
             async initMediaPipe() {
+                // 移动端跳过MediaPipe初始化
+                if (STATE.isMobile) {
+                    console.log('📱 Skipping MediaPipe on mobile device');
+                    return;
+                }
+                
                 try {
                     const vision = await FilesetResolver.forVisionTasks(
                         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
@@ -1574,6 +1877,18 @@
             
             hideLoader() {
                 const loader = document.getElementById('loader');
+                const hintText = document.getElementById('hint-text');
+                const uploadHint = document.getElementById('upload-hint');
+                
+                // 根据设备类型设置提示文本
+                if (STATE.isMobile) {
+                    hintText.textContent = '👆 Tap to view | 🤏 Pinch to zoom | 📱 Swipe to rotate';
+                    uploadHint.textContent = '📸 Tap to add photos | 🎵 Music button at bottom left';
+                } else {
+                    hintText.textContent = '🖱️ Drag to rotate | Click to view | 🎡 Scroll to zoom | H to hide | M for music 🎵';
+                    uploadHint.textContent = 'Open hand for hearts ✋ | Pinch to focus 👌 | Press \'H\' to hide UI | Press \'M\' for music';
+                }
+                
                 setTimeout(() => {
                     loader.classList.add('hidden');
                 }, 1500);
